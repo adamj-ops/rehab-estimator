@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -32,6 +31,7 @@ import { ActionPlanGenerator } from '@/components/rehab-estimator/action-plan/ac
 import { FinalReview } from '@/components/rehab-estimator/final-review'
 import { EstimateSummary } from '@/components/rehab-estimator/estimate-summary'
 import { cn } from '@/lib/utils'
+import { ChargingProgressCompact } from '@/components/rehab-estimator/charging-progress-compact'
 
 const steps = [
   { 
@@ -127,7 +127,7 @@ export default function RehabEstimatorPage() {
         goToNextStep()
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'Failed to proceed to next step')
     }
   }
 
@@ -139,10 +139,9 @@ export default function RehabEstimatorPage() {
     try {
       setIsSaving(true)
       await saveProject()
-      // Show success message
+      setIsSaving(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save draft')
-    } finally {
       setIsSaving(false)
     }
   }
@@ -180,17 +179,15 @@ export default function RehabEstimatorPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-7xl">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-background">
+      {/* Main Header - Single source of truth */}
+      <header className="border-b bg-white px-6 py-4">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Strategic Rehab Estimator</h1>
-            <p className="text-muted-foreground mt-2">
-              Build data-driven renovation scopes that maximize ROI
-            </p>
+            <h1 className="text-2xl font-bold">Strategic Rehab Estimator</h1>
+            <p className="text-sm text-gray-600">Build data-driven renovation scopes that maximize ROI</p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -209,128 +206,59 @@ export default function RehabEstimatorPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </header>
+
+
 
       {/* Error Alert */}
       {error && (
-        <Alert className="mb-6" variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="px-6 py-4">
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
       )}
-
-      {/* Progress Bar */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">
-            Step {currentStep} of {steps.length}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {Math.round(progress)}% Complete
-          </span>
-        </div>
-        <Progress value={progress} className="h-2" />
-      </div>
-
-      {/* Step Navigation */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => {
-            const Icon = step.icon
-            const isActive = step.id === currentStep
-            const isCompleted = step.id < currentStep
-            const isClickable = isCompleted || step.id === currentStep
-            
-            return (
-              <button
-                key={step.id}
-                onClick={() => isClickable && setCurrentStep(step.id)}
-                className={cn(
-                  "flex flex-col items-center transition-all",
-                  isClickable ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                )}
-                disabled={!isClickable}
-              >
-                <div className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-colors",
-                  isActive && "bg-primary text-primary-foreground scale-110",
-                  isCompleted && "bg-green-500 text-white",
-                  !isActive && !isCompleted && "bg-muted text-muted-foreground"
-                )}>
-                  <Icon className="w-6 h-6" />
-                </div>
-                <div className="text-center">
-                  <div className={cn(
-                    "text-xs font-medium",
-                    isActive && "text-primary",
-                    isCompleted && "text-green-600"
-                  )}>
-                    {step.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground max-w-[80px]">
-                    {step.description}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
 
       {/* Smart Scope Generation Alert */}
       {currentStep === 4 && (
-        <Alert className="mb-6">
-          <Sparkles className="h-4 w-4" />
-          <AlertDescription>
-            <div className="flex items-center justify-between">
-              <span>
-                Ready to generate smart recommendations based on your property assessment and strategy?
-              </span>
-              <Button
-                size="sm"
-                onClick={handleGenerateSmartScope}
-                disabled={isGenerating}
-              >
-                {isGenerating ? 'Generating...' : 'Generate Smart Scope'}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
+        <div className="px-6 py-4">
+          <Alert>
+            <Sparkles className="h-4 w-4" />
+            <AlertDescription>
+              <div className="flex items-center justify-between">
+                <span>
+                  Ready to generate smart recommendations based on your property assessment and strategy?
+                </span>
+                <Button
+                  size="sm"
+                  onClick={handleGenerateSmartScope}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? 'Generating...' : 'Generate Smart Scope'}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Step Content */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl">
-                    {steps[currentStep - 1]?.name}
-                  </CardTitle>
-                  <CardDescription>
-                    {steps[currentStep - 1]?.description}
-                  </CardDescription>
-                </div>
-                <Badge variant="outline">
-                  Step {currentStep} of {steps.length}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {CurrentStepComponent && (
-                <CurrentStepComponent 
-                  project={project}
-                  onNext={handleNext}
-                  onBack={handleBack}
-                />
-              )}
-            </CardContent>
-          </Card>
+      <div className="flex gap-6 p-6">
+        {/* Step Content - Clean form without duplicate headers */}
+        <div className="flex-1">
+          {CurrentStepComponent && (
+            <CurrentStepComponent 
+              project={project}
+              onNext={handleNext}
+              onBack={handleBack}
+              currentStep={currentStep}
+              totalSteps={steps.length}
+            />
+          )}
         </div>
 
-        {/* Summary Sidebar */}
-        <div className="lg:col-span-1">
+        {/* Summary Sidebar - Single source of truth */}
+        <div className="w-80">
           <EstimateSummary 
             project={project}
             estimateSummary={estimateSummary}
@@ -339,34 +267,36 @@ export default function RehabEstimatorPage() {
         </div>
       </div>
 
-      {/* Navigation Footer */}
-      <div className="mt-8 flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 1}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
+      {/* Navigation Footer - Single source of truth */}
+      <div className="border-t bg-white px-6 py-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 1}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
 
-        <div className="flex items-center space-x-2">
-          {currentStep === steps.length ? (
-            <Button
-              onClick={() => handleNext({})}
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving...' : 'Complete Project'}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => handleNext({})}
-              disabled={!steps[currentStep - 1]?.component}
-            >
-              Next
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          )}
+          <div className="flex items-center space-x-2">
+            {currentStep === steps.length ? (
+              <Button
+                onClick={() => handleNext({})}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Complete Project'}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => handleNext({})}
+                disabled={!steps[currentStep - 1]?.component}
+              >
+                Next
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

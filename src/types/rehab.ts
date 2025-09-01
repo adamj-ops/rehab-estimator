@@ -12,8 +12,11 @@ export interface RehabProject {
     zip: string
   }
   squareFeet: number
+  lotSize: number
   yearBuilt: number
   propertyType: 'single_family' | 'multi_family' | 'condo' | 'townhouse'
+  bedrooms: number
+  bathrooms: number
   
   // Strategy
   investmentStrategy: 'flip' | 'rental' | 'wholetail' | 'airbnb'
@@ -273,6 +276,7 @@ export interface ContractorBid {
 // Form schemas for validation
 export interface PropertyDetailsFormData {
   projectName: string
+  projectType: 'flip' | 'rental' | 'wholesale'
   address: {
     street: string
     city: string
@@ -280,12 +284,12 @@ export interface PropertyDetailsFormData {
     zip: string
   }
   squareFeet: number
+  lotSize: number
   yearBuilt: number
   propertyType: 'single_family' | 'multi_family' | 'condo' | 'townhouse'
   bedrooms: number
   bathrooms: number
   purchasePrice: number
-  arv: number
 }
 
 export interface StrategyFormData {

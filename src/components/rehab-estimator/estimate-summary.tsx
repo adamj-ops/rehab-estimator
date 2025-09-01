@@ -2,24 +2,20 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { ChargingProgressCompact } from '@/components/rehab-estimator/charging-progress-compact'
 import { 
   DollarSign, 
-  Calendar, 
   TrendingUp, 
   Home, 
-  Clock,
-  AlertTriangle,
-  CheckCircle,
-  Info
+  AlertTriangle
 } from 'lucide-react'
-import { RehabProject, EstimateSummary } from '@/types/rehab'
+import { RehabProject, EstimateSummary as EstimateSummaryType } from '@/types/rehab'
 import { cn } from '@/lib/utils'
 
 interface EstimateSummaryProps {
   project: Partial<RehabProject>
-  estimateSummary: EstimateSummary | null
+  estimateSummary: EstimateSummaryType | null
   currentStep: number
 }
 
@@ -38,42 +34,25 @@ export function EstimateSummary({ project, estimateSummary, currentStep }: Estim
   const isOverBudget = project.maxBudget && summary.totalCost > project.maxBudget
   const budgetRemaining = project.maxBudget ? project.maxBudget - summary.totalCost : 0
 
-  const getStepStatus = (stepNumber: number) => {
-    if (stepNumber < currentStep) return 'completed'
-    if (stepNumber === currentStep) return 'current'
-    return 'pending'
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
-      case 'current':
-        return <Clock className="w-4 h-4 text-blue-500" />
-      default:
-        return <Info className="w-4 h-4 text-gray-400" />
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-600'
-      case 'current':
-        return 'text-blue-600'
-      default:
-        return 'text-gray-400'
-    }
-  }
-
   return (
     <div className="space-y-4">
-      {/* Project Info */}
+      {/* Project Overview */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Project Summary</CardTitle>
+          <CardTitle className="text-lg">Project Overview</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {/* Progress */}
+          <div>
+            <ChargingProgressCompact 
+              currentStep={currentStep} 
+              totalSteps={7}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Project Info */}
           {project.projectName && (
             <div>
               <div className="text-sm font-medium">{project.projectName}</div>
@@ -98,68 +77,48 @@ export function EstimateSummary({ project, estimateSummary, currentStep }: Estim
         </CardContent>
       </Card>
 
-      {/* Financial Summary */}
+      {/* Deal Analysis */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Financial Summary</CardTitle>
+          <CardTitle className="text-lg">Deal Analysis</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Total Cost */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Total Estimate</span>
-              <span className="text-2xl font-bold">
-                ${summary.totalCost.toLocaleString()}
+          {/* What we know */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Purchase Price</span>
+              <span className="font-semibold">
+                {project.purchasePrice ? `$${project.purchasePrice.toLocaleString()}` : '--'}
               </span>
             </div>
-            
-            {/* Budget Progress */}
-            {project.maxBudget && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span>Budget Usage</span>
-                  <span className={cn(
-                    summary.budgetUsage > 100 ? "text-red-600" : "text-muted-foreground"
-                  )}>
-                    {summary.budgetUsage.toFixed(0)}%
-                  </span>
-                </div>
-                <Progress 
-                  value={Math.min(summary.budgetUsage, 100)} 
-                  className={cn(
-                    "h-2",
-                    summary.budgetUsage > 100 && "bg-red-100"
-                  )}
-                />
-                <div className="flex items-center justify-between text-xs">
-                  <span>Remaining</span>
-                  <span className={cn(
-                    budgetRemaining < 0 ? "text-red-600" : "text-muted-foreground"
-                  )}>
-                    ${budgetRemaining.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
 
           <Separator />
 
-          {/* Cost Breakdown */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>Materials</span>
-              <span>${summary.materialCost.toLocaleString()}</span>
+          {/* What we'll calculate */}
+          <div className="space-y-2 opacity-50">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Est. Rehab Cost</span>
+              <span className="text-sm">Pending assessment</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span>Labor</span>
-              <span>${summary.laborCost.toLocaleString()}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Total Investment</span>
+              <span className="text-sm">Pending assessment</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span>Contingency</span>
-              <span>${summary.contingency.toLocaleString()}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Est. ARV</span>
+              <span className="text-sm">Pending scope</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Projected Profit</span>
+              <span className="text-sm">Pending scope</span>
             </div>
           </div>
+
+          {/* Helper text */}
+          <p className="text-xs text-muted-foreground text-center pt-2">
+            Complete all steps to see full analysis
+          </p>
 
           {/* ROI Impact */}
           {summary.roiImpact > 0 && (
@@ -179,104 +138,13 @@ export function EstimateSummary({ project, estimateSummary, currentStep }: Estim
         </CardContent>
       </Card>
 
-      {/* Timeline */}
+      {/* Completion Status */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Timeline</CardTitle>
+          <CardTitle className="text-lg">Completion Status</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Estimated Duration</span>
-            <div className="flex items-center space-x-1">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                {summary.timeline} days
-              </span>
-            </div>
-          </div>
-          
-          {project.holdPeriodMonths && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Hold Period</span>
-              <span className="text-sm">
-                {project.holdPeriodMonths} months
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Category Breakdown */}
-      {Object.keys(summary.categoryBreakdown).length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">By Category</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {Object.entries(summary.categoryBreakdown).map(([category, cost]) => (
-              <div key={category} className="flex items-center justify-between text-sm">
-                <span className="capitalize">{category}</span>
-                <span>${cost.toLocaleString()}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Warnings */}
-      {isOverBudget && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center space-x-2 text-red-700">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm font-medium">Over Budget</span>
-            </div>
-            <p className="text-xs text-red-600 mt-1">
-              Consider removing some items or increasing your budget.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Progress Steps */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Progress</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[
-            'Property Details',
-            'Condition Assessment', 
-            'Strategy & Goals',
-            'Scope Building',
-            'Priority Analysis',
-            'Action Plan',
-            'Final Review'
-          ].map((stepName, index) => {
-            const stepNumber = index + 1
-            const status = getStepStatus(stepNumber)
-            
-            return (
-              <div key={stepNumber} className="flex items-center space-x-2">
-                {getStatusIcon(status)}
-                <span className={cn(
-                  "text-sm",
-                  getStatusColor(status)
-                )}>
-                  {stepName}
-                </span>
-              </div>
-            )
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-4">
+          {/* Status Message */}
           <div className="text-xs text-muted-foreground">
             {currentStep < 7 ? (
               <>
@@ -295,6 +163,38 @@ export function EstimateSummary({ project, estimateSummary, currentStep }: Estim
           </div>
         </CardContent>
       </Card>
+
+      {/* Warnings */}
+      {isOverBudget && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center space-x-2 text-red-700">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm font-medium">Over Budget</span>
+            </div>
+            <p className="text-xs text-red-600 mt-1">
+              Consider removing some items or increasing your budget.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Category Breakdown - Only show if there are categories */}
+      {Object.keys(summary.categoryBreakdown).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">By Category</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {Object.entries(summary.categoryBreakdown).map(([category, cost]) => (
+              <div key={category} className="flex items-center justify-between text-sm">
+                <span className="capitalize">{category}</span>
+                <span>${cost.toLocaleString()}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

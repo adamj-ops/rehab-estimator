@@ -3,299 +3,465 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { TrendingUp, AlertCircle, DollarSign, Clock, Sparkles } from 'lucide-react'
-import { generateSmartScope } from '@/lib/rehab-optimizer'
-import { ScopeItem } from '@/types/rehab'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { 
+  Hammer, 
+  Plus, 
+  Trash2, 
+  Sparkles, 
+  DollarSign, 
+  Calendar,
+  TrendingUp,
+  Target,
+  CheckCircle,
+  AlertTriangle
+} from 'lucide-react'
+import { RehabProject, ScopeItem } from '@/types/rehab'
+import { cn } from '@/lib/utils'
 
 interface ScopeBuilderProps {
-  project: any
+  project: Partial<RehabProject>
   onNext: (data: any) => void
   onBack: () => void
 }
 
+// Predefined scope categories and items
+const scopeCategories = {
+  'Kitchen': [
+    { name: 'Cabinet Replacement', materialCost: 8000, laborCost: 4000, days: 5, roiImpact: 15 },
+    { name: 'Countertop Replacement', materialCost: 3000, laborCost: 1500, days: 2, roiImpact: 12 },
+    { name: 'Appliance Upgrade', materialCost: 5000, laborCost: 800, days: 1, roiImpact: 10 },
+    { name: 'Backsplash Installation', materialCost: 800, laborCost: 600, days: 1, roiImpact: 8 },
+    { name: 'Lighting Upgrade', materialCost: 400, laborCost: 300, days: 1, roiImpact: 6 }
+  ],
+  'Bathroom': [
+    { name: 'Vanity Replacement', materialCost: 1200, laborCost: 800, days: 2, roiImpact: 12 },
+    { name: 'Tub/Shower Replacement', materialCost: 2500, laborCost: 1500, days: 3, roiImpact: 14 },
+    { name: 'Tile Installation', materialCost: 1500, laborCost: 1200, days: 2, roiImpact: 10 },
+    { name: 'Plumbing Fixtures', materialCost: 600, laborCost: 400, days: 1, roiImpact: 8 },
+    { name: 'Ventilation Fan', materialCost: 200, laborCost: 300, days: 1, roiImpact: 5 }
+  ],
+  'Interior': [
+    { name: 'Paint Interior', materialCost: 800, laborCost: 2000, days: 3, roiImpact: 8 },
+    { name: 'Flooring Replacement', materialCost: 4000, laborCost: 3000, days: 4, roiImpact: 12 },
+    { name: 'Trim/Baseboards', materialCost: 600, laborCost: 800, days: 2, roiImpact: 6 },
+    { name: 'Interior Doors', materialCost: 1200, laborCost: 1000, days: 2, roiImpact: 8 },
+    { name: 'Window Treatments', materialCost: 800, laborCost: 400, days: 1, roiImpact: 4 }
+  ],
+  'Exterior': [
+    { name: 'Paint Exterior', materialCost: 1200, laborCost: 3000, days: 4, roiImpact: 10 },
+    { name: 'Roof Repair/Replacement', materialCost: 8000, laborCost: 4000, days: 5, roiImpact: 15 },
+    { name: 'Siding Repair', materialCost: 2000, laborCost: 1500, days: 3, roiImpact: 12 },
+    { name: 'Gutters & Downspouts', materialCost: 800, laborCost: 600, days: 1, roiImpact: 6 },
+    { name: 'Landscaping', materialCost: 1500, laborCost: 1000, days: 2, roiImpact: 8 }
+  ],
+  'Systems': [
+    { name: 'HVAC Replacement', materialCost: 6000, laborCost: 2000, days: 2, roiImpact: 12 },
+    { name: 'Electrical Panel Upgrade', materialCost: 1500, laborCost: 1200, days: 1, roiImpact: 10 },
+    { name: 'Plumbing Repairs', materialCost: 1000, laborCost: 800, days: 1, roiImpact: 8 },
+    { name: 'Water Heater', materialCost: 800, laborCost: 400, days: 1, roiImpact: 6 },
+    { name: 'Smoke Detectors', materialCost: 200, laborCost: 100, days: 1, roiImpact: 4 }
+  ]
+}
+
+const priorityOptions = [
+  { value: 'must', label: 'Must Have', color: 'bg-red-500' },
+  { value: 'should', label: 'Should Have', color: 'bg-orange-500' },
+  { value: 'could', label: 'Could Have', color: 'bg-yellow-500' },
+  { value: 'nice', label: 'Nice to Have', color: 'bg-green-500' }
+]
+
 export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
+  const [selectedCategory, setSelectedCategory] = useState('Kitchen')
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<'category' | 'priority' | 'phase'>('category')
-  
-  useEffect(() => {
-    generateScope()
-  }, [project])
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [customItem, setCustomItem] = useState({
+    name: '',
+    category: 'Kitchen',
+    materialCost: 0,
+    laborCost: 0,
+    days: 1,
+    priority: 'should' as const
+  })
 
-  const generateScope = async () => {
-    setLoading(true)
+  // Calculate totals
+  const totalCost = scopeItems.reduce((sum, item) => sum + item.totalCost, 0)
+  const totalDays = scopeItems.reduce((sum, item) => sum + item.daysRequired, 0)
+  const totalROI = scopeItems.reduce((sum, item) => sum + item.roiImpact, 0)
+
+  const addScopeItem = (item: any) => {
+    const newItem: ScopeItem = {
+      id: `item-${Date.now()}`,
+      projectId: project.id || '',
+      category: item.category || selectedCategory,
+      itemName: item.name,
+      description: '',
+      location: '',
+      quantity: 1,
+      unitOfMeasure: 'each',
+      materialCost: item.materialCost,
+      laborCost: item.laborCost,
+      totalCost: item.materialCost + item.laborCost,
+      priority: item.priority || 'should',
+      roiImpact: item.roiImpact,
+      daysRequired: item.days,
+      dependsOn: [],
+      phase: 1,
+      included: true,
+      completed: false
+    }
+    setScopeItems([...scopeItems, newItem])
+  }
+
+  const removeScopeItem = (itemId: string) => {
+    setScopeItems(scopeItems.filter(item => item.id !== itemId))
+  }
+
+  const toggleScopeItem = (itemId: string) => {
+    setScopeItems(scopeItems.map(item => 
+      item.id === itemId ? { ...item, included: !item.included } : item
+    ))
+  }
+
+  const updateScopeItem = (itemId: string, updates: Partial<ScopeItem>) => {
+    setScopeItems(scopeItems.map(item => 
+      item.id === itemId ? { ...item, ...updates } : item
+    ))
+  }
+
+  const generateSmartRecommendations = async () => {
+    setIsGenerating(true)
     
-    // Call your AI/optimization engine here
-    const smartScope = await generateSmartScope({
-      assessments: project.assessments,
-      strategy: project.investmentStrategy,
-      targetBuyer: project.targetBuyer,
-      maxBudget: project.maxBudget,
-      marketComps: project.comparables
-    })
-    
-    setScopeItems(smartScope)
-    setLoading(false)
-  }
-
-  const toggleItem = (itemId: string) => {
-    setScopeItems(prev => 
-      prev.map(item => 
-        item.id === itemId 
-          ? { ...item, included: !item.included }
-          : item
-      )
-    )
-  }
-
-  const updateItemCost = (itemId: string, cost: number) => {
-    setScopeItems(prev =>
-      prev.map(item =>
-        item.id === itemId
-          ? { ...item, totalCost: cost }
-          : item
-      )
-    )
-  }
-
-  const calculateTotals = () => {
-    const included = scopeItems.filter(item => item.included)
-    return {
-      totalCost: included.reduce((sum, item) => sum + item.totalCost, 0),
-      totalDays: Math.max(...included.map(item => {
-        const phase = item.phase || 1
-        const phaseDays = included
-          .filter(i => i.phase === phase)
-          .reduce((sum, i) => sum + i.daysRequired, 0)
-        return phaseDays
-      })),
-      roiImpact: included.reduce((sum, item) => sum + item.roiImpact, 0)
-    }
-  }
-
-  const totals = calculateTotals()
-
-  const groupByCategory = () => {
-    const grouped: Record<string, ScopeItem[]> = {}
-    scopeItems.forEach(item => {
-      if (!grouped[item.category]) {
-        grouped[item.category] = []
+    // Simulate AI recommendations based on project data
+    setTimeout(() => {
+      const recommendations: ScopeItem[] = []
+      
+      // Kitchen recommendations based on property type and condition
+      if (project.propertyType === 'single_family' && project.squareFeet && project.squareFeet > 1500) {
+        recommendations.push({
+          id: `rec-${Date.now()}-1`,
+          projectId: project.id || '',
+          category: 'Kitchen',
+          itemName: 'Cabinet Replacement',
+          description: 'Recommended for better resale value',
+          location: 'Kitchen',
+          quantity: 1,
+          unitOfMeasure: 'each',
+          materialCost: 8000,
+          laborCost: 4000,
+          totalCost: 12000,
+          priority: 'should',
+          roiImpact: 15,
+          daysRequired: 5,
+          dependsOn: [],
+          phase: 1,
+          included: true,
+          completed: false
+        })
       }
-      grouped[item.category].push(item)
-    })
-    return grouped
-  }
 
-  const groupByPriority = () => {
-    const grouped: Record<string, ScopeItem[]> = {}
-    const priorities = ['must', 'should', 'could', 'nice']
-    priorities.forEach(p => grouped[p] = [])
-    scopeItems.forEach(item => {
-      grouped[item.priority].push(item)
-    })
-    return grouped
-  }
-
-  const groupByPhase = () => {
-    const grouped: Record<string, ScopeItem[]> = {}
-    scopeItems.forEach(item => {
-      const phase = `Phase ${item.phase || 1}`
-      if (!grouped[phase]) {
-        grouped[phase] = []
+      // Bathroom recommendations
+      if (project.bathrooms && project.bathrooms >= 2) {
+        recommendations.push({
+          id: `rec-${Date.now()}-2`,
+          projectId: project.id || '',
+          category: 'Bathroom',
+          itemName: 'Vanity Replacement',
+          description: 'High ROI bathroom upgrade',
+          location: 'Master Bathroom',
+          quantity: 1,
+          unitOfMeasure: 'each',
+          materialCost: 1200,
+          laborCost: 800,
+          totalCost: 2000,
+          priority: 'should',
+          roiImpact: 12,
+          daysRequired: 2,
+          dependsOn: [],
+          phase: 1,
+          included: true,
+          completed: false
+        })
       }
-      grouped[phase].push(item)
-    })
-    return grouped
+
+      // Add recommendations to scope
+      setScopeItems([...scopeItems, ...recommendations])
+      setIsGenerating(false)
+    }, 2000)
   }
 
-  const getGroupedItems = () => {
-    switch (viewMode) {
-      case 'priority': return groupByPriority()
-      case 'phase': return groupByPhase()
-      default: return groupByCategory()
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'must': return 'destructive'
-      case 'should': return 'default'
-      case 'could': return 'secondary'
-      default: return 'outline'
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="text-center py-8">
-          <Sparkles className="w-12 h-12 mx-auto mb-4 animate-pulse text-primary" />
-          <p className="text-lg font-medium">Generating Smart Scope...</p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Analyzing market data and optimizing for ROI
-          </p>
-        </div>
-      </div>
-    )
+  const handleSubmit = () => {
+    onNext({ scopeItems })
   }
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Investment</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totals.totalCost.toLocaleString()}</div>
-            <Progress 
-              value={(totals.totalCost / project.maxBudget) * 100} 
-              className="mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {((totals.totalCost / project.maxBudget) * 100).toFixed(0)}% of budget
-            </p>
-          </CardContent>
-        </Card>
+      {/* Smart Recommendations */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Sparkles className="w-5 h-5" />
+            <span>Smart Recommendations</span>
+          </CardTitle>
+          <CardDescription>
+            Generate AI-powered renovation recommendations based on your property assessment
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            onClick={generateSmartRecommendations}
+            disabled={isGenerating}
+            className="w-full"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            {isGenerating ? 'Generating Recommendations...' : 'Generate Smart Recommendations'}
+          </Button>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totals.totalDays} days</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Approx. {Math.ceil(totals.totalDays / 30)} months
-            </p>
-          </CardContent>
-        </Card>
+      {/* Scope Builder */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Available Items */}
+        <div className="lg:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>Available Items</CardTitle>
+              <CardDescription>
+                Select items to add to your renovation scope
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Category Selector */}
+              <div>
+                <Label>Category</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(scopeCategories).map(category => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">ROI Impact</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              +{totals.roiImpact.toFixed(1)}%
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Expected value increase
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* AI Insight */}
-      <Alert>
-        <Sparkles className="h-4 w-4" />
-        <AlertTitle>Smart Scope Insight</AlertTitle>
-        <AlertDescription>
-          Based on your {project.investmentStrategy} strategy and {project.targetBuyer} target market, 
-          we've prioritized kitchen and bathroom updates which show the highest ROI in your area. 
-          Consider upgrading to premium fixtures in the master bath - comparable properties with 
-          luxury bathrooms sold for 12% more.
-        </AlertDescription>
-      </Alert>
-
-      {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
-        <TabsList>
-          <TabsTrigger value="category">By Category</TabsTrigger>
-          <TabsTrigger value="priority">By Priority</TabsTrigger>
-          <TabsTrigger value="phase">By Phase</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={viewMode} className="space-y-4 mt-4">
-          {Object.entries(getGroupedItems()).map(([group, items]) => {
-            const groupTotal = items
-              .filter(i => i.included)
-              .reduce((sum, i) => sum + i.totalCost, 0)
-            
-            return (
-              <Card key={group}>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle className="text-lg capitalize">{group}</CardTitle>
-                      <CardDescription>
-                        {items.filter(i => i.included).length} of {items.length} items selected
-                      </CardDescription>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">
-                        ${groupTotal.toLocaleString()}
+              {/* Items in Category */}
+              <div className="space-y-2">
+                {scopeCategories[selectedCategory as keyof typeof scopeCategories]?.map((item, index) => (
+                  <div key={index} className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                       onClick={() => addScopeItem({ ...item, category: selectedCategory })}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{item.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          ${(item.materialCost + item.laborCost).toLocaleString()} • {item.days} days
+                        </div>
                       </div>
+                      <Plus className="w-4 h-4 text-muted-foreground" />
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {items.map(item => (
-                    <div 
-                      key={item.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <Switch
-                          checked={item.included}
-                          onCheckedChange={() => toggleItem(item.id)}
-                        />
-                        <div>
-                          <div className="font-medium">{item.itemName}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {item.description}
+                ))}
+              </div>
+
+              {/* Custom Item */}
+              <Separator />
+              <div className="space-y-3">
+                <Label>Add Custom Item</Label>
+                <Input
+                  placeholder="Item name"
+                  value={customItem.name}
+                  onChange={(e) => setCustomItem({ ...customItem, name: e.target.value })}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Material cost"
+                    value={customItem.materialCost}
+                    onChange={(e) => setCustomItem({ ...customItem, materialCost: Number(e.target.value) })}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Labor cost"
+                    value={customItem.laborCost}
+                    onChange={(e) => setCustomItem({ ...customItem, laborCost: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Days required"
+                    value={customItem.days}
+                    onChange={(e) => setCustomItem({ ...customItem, days: Number(e.target.value) })}
+                  />
+                  <Select value={customItem.priority} onValueChange={(value: any) => setCustomItem({ ...customItem, priority: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorityOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
+                  onClick={() => {
+                    if (customItem.name) {
+                      addScopeItem(customItem)
+                      setCustomItem({ ...customItem, name: '', materialCost: 0, laborCost: 0, days: 1 })
+                    }
+                  }}
+                  disabled={!customItem.name}
+                  className="w-full"
+                >
+                  Add Custom Item
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Selected Scope */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Renovation Scope</CardTitle>
+              <CardDescription>
+                Your selected renovation items and their details
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {scopeItems.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Hammer className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No items added to scope yet.</p>
+                  <p className="text-sm">Select items from the left panel or generate smart recommendations.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {scopeItems.map((item) => (
+                    <div key={item.id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            checked={item.included}
+                            onCheckedChange={() => toggleScopeItem(item.id)}
+                          />
+                          <div>
+                            <div className="font-medium">{item.itemName}</div>
+                            <div className="text-sm text-muted-foreground">{item.category}</div>
                           </div>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant={getPriorityColor(item.priority)}>
-                              {item.priority}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {item.quantity} {item.unitOfMeasure}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              • {item.daysRequired} days
-                            </span>
-                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className={cn(
+                            priorityOptions.find(p => p.value === item.priority)?.color,
+                            'text-white'
+                          )}>
+                            {priorityOptions.find(p => p.value === item.priority)?.label}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeScopeItem(item.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <Input
-                            type="number"
-                            value={item.totalCost}
-                            onChange={(e) => updateItemCost(item.id, parseFloat(e.target.value))}
-                            className="w-24 text-right"
-                            disabled={!item.included}
-                          />
-                          <div className="text-xs text-green-600 mt-1">
-                            ROI: +{item.roiImpact}%
-                          </div>
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <div className="text-muted-foreground">Total Cost</div>
+                          <div className="font-medium">${item.totalCost.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Materials</div>
+                          <div className="font-medium">${item.materialCost.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Labor</div>
+                          <div className="font-medium">${item.laborCost.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Days</div>
+                          <div className="font-medium">{item.daysRequired}</div>
                         </div>
                       </div>
                     </div>
                   ))}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </TabsContent>
-      </Tabs>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Summary */}
+      {scopeItems.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Scope Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <DollarSign className="w-8 h-8 mx-auto mb-2 text-green-600" />
+                <div className="text-2xl font-bold">${totalCost.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Total Cost</div>
+              </div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <Calendar className="w-8 h-8 mx-auto mb-2 text-blue-600" />
+                <div className="text-2xl font-bold">{totalDays}</div>
+                <div className="text-sm text-muted-foreground">Total Days</div>
+              </div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-600" />
+                <div className="text-2xl font-bold">+{totalROI.toFixed(1)}%</div>
+                <div className="text-sm text-muted-foreground">ROI Impact</div>
+              </div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <Target className="w-8 h-8 mx-auto mb-2 text-orange-600" />
+                <div className="text-2xl font-bold">{scopeItems.length}</div>
+                <div className="text-sm text-muted-foreground">Items</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Budget Warning */}
+      {project.maxBudget && totalCost > project.maxBudget && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Your scope exceeds your budget by ${(totalCost - project.maxBudget).toLocaleString()}. 
+            Consider removing some items or increasing your budget.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Navigation */}
       <div className="flex justify-between">
         <Button variant="outline" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={() => onNext({ scopeItems, totals })}>
-          Continue to Priorities
+        <Button 
+          onClick={handleSubmit}
+          disabled={scopeItems.length === 0}
+        >
+          Continue to Priority Analysis
         </Button>
       </div>
     </div>

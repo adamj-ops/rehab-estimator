@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -18,19 +17,23 @@ import {
   Home, 
   MapPin, 
   Ruler, 
-  Calendar, 
   Bed, 
   Bath, 
   DollarSign, 
   TrendingUp,
   Info,
-  Calculator
+  Calculator,
+  Building,
+  Save,
+  ArrowRight
 } from 'lucide-react'
 import { RehabProject, PropertyDetailsFormData } from '@/types/rehab'
 import { cn } from '@/lib/utils'
+import { FinancialSection } from '@/components/rehab-estimator/property-details-financial'
 
 const propertyDetailsSchema = z.object({
   projectName: z.string().min(1, 'Project name is required'),
+  projectType: z.enum(['flip', 'rental', 'wholesale']),
   address: z.object({
     street: z.string().min(1, 'Street address is required'),
     city: z.string().min(1, 'City is required'),
@@ -38,28 +41,33 @@ const propertyDetailsSchema = z.object({
     zip: z.string().min(5, 'Valid ZIP code is required')
   }),
   squareFeet: z.number().min(100, 'Square footage must be at least 100'),
+  lotSize: z.number().min(0),
   yearBuilt: z.number().min(1800).max(new Date().getFullYear()),
   propertyType: z.enum(['single_family', 'multi_family', 'condo', 'townhouse']),
   bedrooms: z.number().min(0).max(20),
   bathrooms: z.number().min(0).max(20),
-  purchasePrice: z.number().min(0, 'Purchase price must be positive'),
-  arv: z.number().min(0, 'ARV must be positive')
-}).refine((data) => data.arv >= data.purchasePrice, {
-  message: "ARV should typically be higher than purchase price",
-  path: ["arv"]
+  purchasePrice: z.number().min(0, 'Purchase price must be positive')
 })
 
 interface PropertyDetailsFormProps {
   project: Partial<RehabProject>
   onNext: (data: PropertyDetailsFormData) => void
   onBack: () => void
+  currentStep: number
+  totalSteps: number
 }
 
 const propertyTypes = [
   { value: 'single_family', label: 'Single Family', icon: Home },
-  { value: 'multi_family', label: 'Multi-Family', icon: Home },
-  { value: 'condo', label: 'Condo', icon: Home },
-  { value: 'townhouse', label: 'Townhouse', icon: Home }
+  { value: 'multi_family', label: 'Multi-Family', icon: Building },
+  { value: 'condo', label: 'Condo', icon: Building },
+  { value: 'townhouse', label: 'Townhouse', icon: Building }
+]
+
+const projectTypes = [
+  { value: 'flip', label: 'Flip', description: 'Buy, renovate, sell quickly' },
+  { value: 'rental', label: 'Rental', description: 'Buy, renovate, rent out' },
+  { value: 'wholesale', label: 'Wholesale', description: 'Find deals for other investors' }
 ]
 
 const states = [
@@ -70,13 +78,20 @@ const states = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ]
 
-export function PropertyDetailsForm({ project, onNext, onBack }: PropertyDetailsFormProps) {
-  const [isCalculatingARV, setIsCalculatingARV] = useState(false)
+export function PropertyDetailsForm({ project, onNext, onBack, currentStep, totalSteps }: PropertyDetailsFormProps) {
+
+  const [bedrooms, setBedrooms] = useState(project.bedrooms || 3)
+  const [bathrooms, setBathrooms] = useState(project.bathrooms || 2)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [selectedStrategy, setSelectedStrategy] = useState('flip')
+  const [purchasePrice, setPurchasePrice] = useState(project.purchasePrice || 0)
+  const [propertyType, setPropertyType] = useState(project.propertyType || 'single_family')
 
   const form = useForm<PropertyDetailsFormData>({
     resolver: zodResolver(propertyDetailsSchema),
     defaultValues: {
       projectName: project.projectName || '',
+      projectType: selectedStrategy as 'flip' | 'rental' | 'wholesale',
       address: {
         street: project.address?.street || '',
         city: project.address?.city || '',
@@ -84,279 +99,233 @@ export function PropertyDetailsForm({ project, onNext, onBack }: PropertyDetails
         zip: project.address?.zip || ''
       },
       squareFeet: project.squareFeet || 0,
+      lotSize: project.lotSize || 0,
       yearBuilt: project.yearBuilt || 2000,
-      propertyType: project.propertyType || 'single_family',
-      bedrooms: project.bedrooms || 3,
-      bathrooms: project.bathrooms || 2,
-      purchasePrice: project.purchasePrice || 0,
-      arv: project.arv || 0
+      propertyType: propertyType as 'single_family' | 'multi_family' | 'condo' | 'townhouse',
+      bedrooms: bedrooms,
+      bathrooms: bathrooms,
+      purchasePrice: purchasePrice
     }
   })
 
-  const watchPurchasePrice = form.watch('purchasePrice')
-  const watchSquareFeet = form.watch('squareFeet')
-  const watchPropertyType = form.watch('propertyType')
-
-  const calculateARV = async () => {
-    setIsCalculatingARV(true)
-    try {
-      // TODO: Implement actual ARV calculation using market data
-      // For now, use a simple calculation
-      const basePricePerSqft = 150 // This would come from market data
-      const propertyTypeMultiplier = {
-        single_family: 1.0,
-        multi_family: 0.9,
-        condo: 0.8,
-        townhouse: 0.95
+  // Watch for changes to update unsaved changes indicator
+  const watchedValues = form.watch()
+  useEffect(() => {
+    const subscription = form.watch((value, { name, type }) => {
+      if (type === 'change') {
+        setHasUnsavedChanges(true)
       }
-      
-      const calculatedARV = watchSquareFeet * basePricePerSqft * propertyTypeMultiplier[watchPropertyType]
-      
-      // Add some random variation to make it realistic
-      const variation = 0.9 + Math.random() * 0.2 // ±10% variation
-      const finalARV = Math.round(calculatedARV * variation)
-      
-      form.setValue('arv', finalARV)
-    } catch (error) {
-      console.error('Failed to calculate ARV:', error)
-    } finally {
-      setIsCalculatingARV(false)
-    }
-  }
+    })
+    return () => subscription.unsubscribe()
+  }, [form])
 
   const onSubmit = (data: PropertyDetailsFormData) => {
-    onNext(data)
+    const formData = {
+      ...data,
+      selectedStrategy,
+      purchasePrice,
+      propertyType
+    }
+    onNext(formData)
   }
-
-  const getARVRecommendation = () => {
-    if (!watchPurchasePrice || !watchSquareFeet) return null
-    
-    const pricePerSqft = watchPurchasePrice / watchSquareFeet
-    const currentARV = form.watch('arv')
-    
-    if (currentARV && currentARV < watchPurchasePrice) {
-      return {
-        type: 'warning' as const,
-        message: 'ARV is lower than purchase price. Consider if this is a good investment opportunity.'
-      }
-    }
-    
-    if (pricePerSqft < 50) {
-      return {
-        type: 'info' as const,
-        message: 'Low price per sq ft suggests potential for significant value-add opportunities.'
-      }
-    }
-    
-    if (pricePerSqft > 300) {
-      return {
-        type: 'warning' as const,
-        message: 'High price per sq ft - ensure your renovation scope justifies the premium.'
-      }
-    }
-    
-    return null
-  }
-
-  const arvRecommendation = getARVRecommendation()
 
   return (
     <div className="space-y-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Project Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Home className="w-5 h-5" />
-                <span>Project Information</span>
-              </CardTitle>
-              <CardDescription>
-                Start by naming your project and entering the property address
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="projectName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Name</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="e.g., 123 Main Street Flip" 
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Give your project a memorable name for easy reference
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="address.street"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Street Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="123 Main Street" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="address.city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Austin" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="address.state"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>State</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+      {/* Main Form */}
+      <div className="space-y-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Project Setup Card */}
+            <Card className="border-l-4 border-l-primary">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Home className="w-5 h-5 text-primary" />
+                  <CardTitle>Project Setup</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="projectName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          Project Name
+                          <Badge variant="outline" className="text-xs">Required</Badge>
+                        </FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select state" />
-                          </SelectTrigger>
+                          <Input 
+                            placeholder="e.g., 123 Main Street Renovation"
+                            className="mt-1"
+                            {...field}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          {states.map((state) => (
-                            <SelectItem key={state} value={state}>
-                              {state}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormDescription>
+                          Choose a memorable name to easily identify this project
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-                <FormField
-                  control={form.control}
-                  name="address.zip"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
-                      <FormControl>
-                        <Input placeholder="78701" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Property Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Ruler className="w-5 h-5" />
-                <span>Property Details</span>
-              </CardTitle>
-              <CardDescription>
-                Enter the basic property characteristics
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="propertyType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Property Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+            {/* Property Address Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-primary" />
+                  <CardTitle>Property Address</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="address.street"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Street Address</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select property type" />
-                          </SelectTrigger>
+                          <Input placeholder="123 Main Street" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          {propertyTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="address.city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Austin" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="address.state"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>State</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select state" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {states.map((state) => (
+                                <SelectItem key={state} value={state}>
+                                  {state}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="address.zip"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ZIP Code</FormLabel>
+                          <FormControl>
+                            <Input placeholder="78701" maxLength={5} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                <FormField
-                  control={form.control}
-                  name="squareFeet"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Square Feet</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="2000" 
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="yearBuilt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Year Built</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="2000" 
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+            {/* Property Characteristics Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Building className="w-5 h-5 text-primary" />
+                  <CardTitle>Property Characteristics</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Property Type</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setPropertyType('single_family')}
+                        className={cn(
+                          "p-3 rounded-lg border-2 transition-all text-sm font-medium",
+                          propertyType === 'single_family'
+                            ? "border-gray-900 bg-gray-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        )}
+                      >
+                        Single Family
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPropertyType('multi_family')}
+                        className={cn(
+                          "p-3 rounded-lg border-2 transition-all text-sm font-medium",
+                          propertyType === 'multi_family'
+                            ? "border-gray-900 bg-gray-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        )}
+                      >
+                        Multi-Family
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPropertyType('condo')}
+                        className={cn(
+                          "p-3 rounded-lg border-2 transition-all text-sm font-medium",
+                          propertyType === 'condo'
+                            ? "border-gray-900 bg-gray-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        )}
+                      >
+                        Condo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPropertyType('townhouse')}
+                        className={cn(
+                          "p-3 rounded-lg border-2 transition-all text-sm font-medium",
+                          propertyType === 'townhouse'
+                            ? "border-gray-900 bg-gray-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        )}
+                      >
+                        Townhouse
+                      </button>
+                    </div>
+                  </div>
                   <FormField
                     control={form.control}
-                    name="bedrooms"
+                    name="yearBuilt"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="flex items-center space-x-1">
-                          <Bed className="w-4 h-4" />
-                          <span>Bedrooms</span>
-                        </FormLabel>
+                        <FormLabel>Year Built</FormLabel>
                         <FormControl>
                           <Input 
                             type="number" 
-                            placeholder="3" 
+                            placeholder="2000" 
+                            min="1800" 
+                            max="2024"
                             {...field}
                             onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                           />
@@ -365,181 +334,141 @@ export function PropertyDetailsForm({ project, onNext, onBack }: PropertyDetails
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
-                    name="bathrooms"
+                    name="squareFeet"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="flex items-center space-x-1">
-                          <Bath className="w-4 h-4" />
-                          <span>Bathrooms</span>
-                        </FormLabel>
+                        <FormLabel>Square Feet</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="2" 
-                            step="0.5"
-                            {...field}
-                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Financial Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <DollarSign className="w-5 h-5" />
-                <span>Financial Information</span>
-              </CardTitle>
-              <CardDescription>
-                Enter purchase price and estimated after-repair value
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="purchasePrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Purchase Price</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                            $
-                          </span>
-                          <Input 
-                            type="number" 
-                            placeholder="250000" 
-                            className="pl-6"
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="arv"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center space-x-2">
-                        <span>After Repair Value (ARV)</span>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Info className="w-4 h-4 text-muted-foreground" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>The estimated value after all renovations are complete</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </FormLabel>
-                      <FormControl>
-                        <div className="flex space-x-2">
-                          <div className="relative flex-1">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                              $
-                            </span>
-                            <Input 
-                              type="number" 
-                              placeholder="350000" 
-                              className="pl-6"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="0"
+                              className="pr-12"
+                              value={field.value ? field.value.toLocaleString() : ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9]/g, '')
+                                field.onChange(value ? parseInt(value) : 0)
+                              }}
                             />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                              sq ft
+                            </span>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={calculateARV}
-                            disabled={isCalculatingARV || !watchSquareFeet}
-                          >
-                            <Calculator className="w-4 h-4 mr-1" />
-                            {isCalculatingARV ? 'Calculating...' : 'Estimate'}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Use the estimate button to get a market-based ARV calculation
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* ARV Recommendation */}
-              {arvRecommendation && (
-                <Alert className={cn(
-                  arvRecommendation.type === 'warning' && "border-yellow-200 bg-yellow-50",
-                  arvRecommendation.type === 'info' && "border-blue-200 bg-blue-50"
-                )}>
-                  <AlertDescription className={cn(
-                    arvRecommendation.type === 'warning' && "text-yellow-800",
-                    arvRecommendation.type === 'info' && "text-blue-800"
-                  )}>
-                    {arvRecommendation.message}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Quick Calculations */}
-              {watchPurchasePrice > 0 && watchSquareFeet > 0 && (
-                <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
-                  <div className="text-center">
-                    <div className="text-sm text-muted-foreground">Price per Sq Ft</div>
-                    <div className="text-lg font-semibold">
-                      ${(watchPurchasePrice / watchSquareFeet).toFixed(0)}
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lotSize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lot Size</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="0"
+                              className="pr-12"
+                              value={field.value ? field.value.toLocaleString() : ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9]/g, '')
+                                field.onChange(value ? parseInt(value) : 0)
+                              }}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                              sq ft
+                            </span>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div>
+                    <Label>Bedrooms</Label>
+                    <div className="flex gap-2 mt-2">
+                      {([1, 2, 3, 4, '5+'] as const).map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            const value = num === '5+' ? 5 : num
+                            setBedrooms(value)
+                            form.setValue('bedrooms', value)
+                          }}
+                          className={cn(
+                            "flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all",
+                            bedrooms === (num === '5+' ? 5 : num)
+                              ? "border-gray-900 bg-gray-900 text-white"
+                              : "border-gray-200 hover:border-gray-300"
+                          )}
+                        >
+                          {num}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-sm text-muted-foreground">Potential Profit</div>
-                    <div className="text-lg font-semibold text-green-600">
-                      ${(form.watch('arv') - watchPurchasePrice).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-sm text-muted-foreground">ROI Potential</div>
-                    <div className="text-lg font-semibold text-blue-600">
-                      {watchPurchasePrice > 0 ? ((form.watch('arv') - watchPurchasePrice) / watchPurchasePrice * 100).toFixed(1) : 0}%
+                  <div>
+                    <Label>Bathrooms</Label>
+                    <div className="flex gap-2 mt-2">
+                      {([1, 1.5, 2, 2.5, '3+'] as const).map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            const value = num === '3+' ? 3 : num
+                            setBathrooms(value)
+                            form.setValue('bathrooms', value)
+                          }}
+                          className={cn(
+                            "flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all",
+                            bathrooms === (num === '3+' ? 3 : num)
+                              ? "border-gray-900 bg-gray-900 text-white"
+                              : "border-gray-200 hover:border-gray-300"
+                          )}
+                        >
+                          {num}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Navigation */}
-          <div className="flex justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onBack}
-            >
-              Back
-            </Button>
-            <Button type="submit">
-              Continue to Assessment
-            </Button>
-          </div>
-        </form>
-      </Form>
+            {/* Financial Section */}
+            <FinancialSection 
+              purchasePrice={purchasePrice}
+              onPurchasePriceChange={setPurchasePrice}
+            />
+
+            {/* Navigation Buttons */}
+            <div className="flex justify-between pt-6">
+              <Button type="button" variant="outline" onClick={onBack}>
+                Back
+              </Button>
+              <div className="flex gap-2">
+                {hasUnsavedChanges && (
+                  <Button type="button" variant="outline" size="sm">
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Draft
+                  </Button>
+                )}
+                <Button type="submit">
+                  Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </form>
+        </Form>
+      </div>
     </div>
   )
 }

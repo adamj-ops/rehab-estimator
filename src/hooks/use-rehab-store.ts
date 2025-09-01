@@ -149,21 +149,25 @@ export const useRehabStore = create<RehabStore>()(
         set({ loading: true, error: null })
         
         try {
-          // TODO: Implement Supabase save
-          // const supabase = createClientComponentClient()
-          // const { data, error } = await supabase
-          //   .from('rehab_projects')
-          //   .upsert(project)
-          //   .select()
-          //   .single()
+          // Import the project service
+          const { projectService } = await import('@/lib/supabase/database')
           
-          // if (error) throw error
+          let savedProject: RehabProject | null
           
-          // set({ project: data })
-          // return data
+          if (project.id) {
+            // Update existing project
+            savedProject = await projectService.update(project.id, project)
+          } else {
+            // Create new project
+            savedProject = await projectService.create(project)
+          }
           
-          // For now, just return the project
-          return project as RehabProject
+          if (savedProject) {
+            set({ project: savedProject })
+            return savedProject
+          } else {
+            throw new Error('Failed to save project')
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to save project'
           set({ error: errorMessage })
