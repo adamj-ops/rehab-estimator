@@ -448,24 +448,15 @@ export function PropertyDetailsForm({ project, onNext, onBack, currentStep, tota
               onPurchasePriceChange={setPurchasePrice}
             />
 
-            {/* Navigation Buttons */}
-            <div className="flex justify-between pt-6">
-              <Button type="button" variant="outline" onClick={onBack}>
-                Back
-              </Button>
-              <div className="flex gap-2">
-                {hasUnsavedChanges && (
-                  <Button type="button" variant="outline" size="sm">
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Draft
-                  </Button>
-                )}
-                <Button type="submit">
-                  Continue
-                  <ArrowRight className="w-4 h-4 ml-2" />
+            {/* Save Draft Button - Only show if there are unsaved changes */}
+            {hasUnsavedChanges && (
+              <div className="flex justify-end pt-6">
+                <Button type="button" variant="outline" size="sm">
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Draft
                 </Button>
               </div>
-            </div>
+            )}
           </form>
         </Form>
       </div>

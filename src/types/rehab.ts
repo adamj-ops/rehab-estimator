@@ -173,8 +173,8 @@ export interface RoomComponent {
 export interface RoomAssessment {
   roomType: string
   roomName: string
-  condition: 'excellent' | 'good' | 'fair' | 'poor' | 'terrible'
-  components: RoomComponent[]
+  condition: 'excellent' | 'good' | 'fair' | 'poor' | 'terrible' | undefined
+  components: Record<string, { needsWork: boolean; action: string }>
   notes: string
   photos: string[]
 }

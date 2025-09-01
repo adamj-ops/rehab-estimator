@@ -565,11 +565,8 @@ export function ActionPlanGenerator({ project, onNext, onBack }: ActionPlanGener
         </CardContent>
       </Card>
 
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
+      {/* Submit Handler - Navigation is handled by parent component */}
+      <div className="hidden">
         <Button 
           onClick={handleSubmit}
           disabled={phases.length === 0}

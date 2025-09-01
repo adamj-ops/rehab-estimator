@@ -208,10 +208,8 @@ export function FinalReview({ project, onNext, onBack }: FinalReviewProps) {
         </CardContent>
       </Card>
 
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
+      {/* Submit Handler - Navigation is handled by parent component */}
+      <div className="hidden">
         <Button 
           onClick={handleSubmit} 
           disabled={isSubmitting}
