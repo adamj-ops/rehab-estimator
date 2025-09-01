@@ -180,36 +180,6 @@ export default function RehabEstimatorPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Main Header - Single source of truth */}
-      <header className="border-b bg-white px-6 py-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Strategic Rehab Estimator</h1>
-            <p className="text-sm text-gray-600">Build data-driven renovation scopes that maximize ROI</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              disabled={isSaving}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? 'Saving...' : 'Save Draft'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetProject}
-            >
-              Reset
-            </Button>
-          </div>
-        </div>
-      </header>
-
-
-
       {/* Error Alert */}
       {error && (
         <div className="px-6 py-4">
