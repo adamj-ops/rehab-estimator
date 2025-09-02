@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle2, Github } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Icons } from '@/components/ui/icons'
 import { useAuth } from '@/lib/auth/auth-context'
 import { cn } from '@/lib/utils'
@@ -51,7 +51,7 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, signInWithOAuth } = useAuth()
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -123,17 +123,17 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
     }
   }
 
-  const handleOAuthSignIn = async (provider: 'google' | 'github' | 'microsoft') => {
+  const handleOAuthSignIn = async (provider: 'google') => {
     setIsLoading(true)
     setError(null)
     
     try {
-      // TODO: Implement OAuth with Supabase
-      // This would use supabase.auth.signInWithOAuth()
-      console.log('OAuth sign in with', provider)
-      setError('OAuth integration coming soon!')
-    } catch (error: any) {
-      setError(error.message)
+      const { error } = await signInWithOAuth(provider)
+      if (error) {
+        setError(error.message)
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -424,7 +424,7 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
             disabled={isLoading}
             className="w-full"
           >
-            <Github className="mr-2 h-4 w-4" />
+            <Icons.github className="mr-2 h-4 w-4" />
             GitHub
           </Button>
           <Button
