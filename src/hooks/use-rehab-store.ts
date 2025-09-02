@@ -37,7 +37,7 @@ interface RehabStore {
   resetProject: () => void
   
   // Project actions
-  saveProject: () => Promise<RehabProject | null>
+  saveProject: (userId: string) => Promise<RehabProject | null>
   loadProject: (projectId: string) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
   
@@ -144,26 +144,52 @@ export const useRehabStore = create<RehabStore>()(
       },
       
       // Project actions
-      saveProject: async () => {
+      saveProject: async (userId: string) => {
         const { project } = get()
         set({ loading: true, error: null })
         
         try {
           // Import the project service
-          const { projectService } = await import('@/lib/supabase/database')
+          const { projectService, scopeItemService, assessmentService } = await import('@/lib/supabase/database')
           
           let savedProject: RehabProject | null
           
           if (project.id) {
             // Update existing project
-            savedProject = await projectService.update(project.id, project)
+            savedProject = await projectService.update(project.id, { ...project, userId })
           } else {
             // Create new project
-            savedProject = await projectService.create(project)
+            savedProject = await projectService.create({ ...project, userId })
           }
           
           if (savedProject) {
-            set({ project: savedProject })
+            // Save scope items if they exist
+            if (project.scopeItems && project.scopeItems.length > 0) {
+              for (const item of project.scopeItems) {
+                if (item.id) {
+                  await scopeItemService.update(item.id, item)
+                } else {
+                  await scopeItemService.create(savedProject.id, item)
+                }
+              }
+            }
+            
+            // Save assessments if they exist
+            if (project.assessments && Array.isArray(project.assessments)) {
+              for (const assessment of project.assessments) {
+                if (assessment) {
+                  await assessmentService.upsert(savedProject.id, assessment)
+                }
+              }
+            }
+            
+            // Reload the project with all related data
+            const fullProject = await projectService.getById(savedProject.id)
+            if (fullProject) {
+              set({ project: fullProject })
+              return fullProject
+            }
+            
             return savedProject
           } else {
             throw new Error('Failed to save project')

@@ -6,6 +6,7 @@ import { UserProfile } from '@/components/auth/user-profile'
 import { Button } from '@/components/ui/button'
 import { Save, RotateCcw } from 'lucide-react'
 import { useRehabStore } from '@/hooks/use-rehab-store'
+import { useAuth } from '@/lib/auth/auth-context'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -13,10 +14,16 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { saveProject, resetProject } = useRehabStore()
+  const { user } = useAuth()
 
   const handleSaveDraft = async () => {
+    if (!user?.id) {
+      console.error('No user ID available')
+      return
+    }
+    
     try {
-      await saveProject()
+      await saveProject(user.id)
     } catch (err) {
       console.error('Failed to save draft:', err)
     }
