@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Grid3X3, 
   TrendingUp, 
@@ -14,10 +15,21 @@ import {
   Target,
   AlertTriangle,
   CheckCircle,
-  Info
+  Info,
+  Network,
+  Calendar,
+  Shield,
+  Zap
 } from 'lucide-react'
 import { RehabProject, ScopeItem, PriorityMatrixItem } from '@/types/rehab'
 import { cn } from '@/lib/utils'
+import { 
+  PriorityScoringEngine,
+  DependencyMappingEngine,
+  MarketTimingEngine,
+  PriorityMatrixEnhanced
+} from '@/lib/priority-engine'
+import { CostUtils } from '@/lib/cost-calculator'
 
 interface PriorityMatrixProps {
   project: Partial<RehabProject>
@@ -33,8 +45,19 @@ interface MatrixCell {
 
 export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps) {
   const [matrixItems, setMatrixItems] = useState<PriorityMatrixItem[]>([])
+  const [enhancedItems, setEnhancedItems] = useState<PriorityMatrixEnhanced[]>([])
   const [selectedItem, setSelectedItem] = useState<PriorityMatrixItem | null>(null)
   const [matrixCells, setMatrixCells] = useState<MatrixCell[][]>([])
+  const [activeTab, setActiveTab] = useState('matrix')
+
+  // Project context for advanced scoring
+  const projectContext = {
+    strategy: project.investmentStrategy || 'flip',
+    timeline: project.holdPeriodMonths || 6,
+    budget: project.maxBudget || 100000,
+    season: getCurrentSeason(),
+    marketConditions: 'balanced' as const
+  }
 
   // Initialize matrix when scope items change
   useEffect(() => {
@@ -49,10 +72,58 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
         priority: item.priority,
         included: item.included
       }))
+      
+      // Generate enhanced items with advanced scoring
+      const enhanced = generateEnhancedItems(project.scopeItems, projectContext)
+      
       setMatrixItems(items)
+      setEnhancedItems(enhanced)
       generateMatrix(items)
     }
   }, [project.scopeItems])
+
+  // Generate enhanced priority items with advanced scoring
+  const generateEnhancedItems = (scopeItems: ScopeItem[], context: any): PriorityMatrixEnhanced[] => {
+    return scopeItems.map(item => {
+      const priorityScore = PriorityScoringEngine.calculatePriorityScore(item, scopeItems, context)
+      const dependencies = DependencyMappingEngine.createDependencyMapping(scopeItems)
+        .find(dep => dep.itemId === item.id)!
+      
+      return {
+        id: item.id,
+        name: item.itemName,
+        category: getCategoryFromItem(item),
+        roiImpact: item.roiImpact,
+        urgency: priorityScore.components.urgency,
+        cost: item.totalCost,
+        priority: item.priority,
+        included: item.included,
+        priorityScore,
+        dependencies,
+        riskFactors: {
+          executionRisk: item.totalCost > 10000 ? 'high' : item.totalCost > 5000 ? 'medium' : 'low',
+          timeRisk: item.daysRequired > 10 ? 'high' : item.daysRequired > 5 ? 'medium' : 'low',
+          costRisk: item.dependsOn.length > 2 ? 'high' : item.dependsOn.length > 0 ? 'medium' : 'low',
+          marketRisk: context.marketConditions === 'cold' ? 'high' : 'low'
+        },
+        marketTiming: {
+          seasonalFactor: 1.0,
+          marketConditions: context.marketConditions,
+          recommendedStartDate: new Date(),
+          reasoning: 'Optimal timing based on current conditions'
+        }
+      }
+    })
+  }
+
+  // Get current season helper
+  function getCurrentSeason(): 'spring' | 'summer' | 'fall' | 'winter' {
+    const month = new Date().getMonth()
+    if (month >= 2 && month <= 4) return 'spring'
+    if (month >= 5 && month <= 7) return 'summer'
+    if (month >= 8 && month <= 10) return 'fall'
+    return 'winter'
+  }
 
   const getCategoryFromItem = (item: ScopeItem): 'safety' | 'structural' | 'systems' | 'cosmetic' | 'optional' => {
     const category = item.category.toLowerCase()
@@ -164,17 +235,28 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
 
   return (
     <div className="space-y-6">
-      {/* Matrix Visualization */}
+      {/* Enhanced Priority Analysis */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Grid3X3 className="w-5 h-5" />
-            <span>Priority Matrix</span>
+            <span>Advanced Priority Analysis</span>
           </CardTitle>
           <CardDescription>
-            Visualize your renovation items by ROI impact vs urgency
+            AI-powered priority analysis with dependency mapping and market timing
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="matrix">Priority Matrix</TabsTrigger>
+              <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
+              <TabsTrigger value="timeline">Critical Path</TabsTrigger>
+              <TabsTrigger value="recommendations">AI Insights</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="matrix" className="mt-6">
+              {/* Original Matrix Visualization */}
         <CardContent>
           {/* Matrix Grid */}
           <div className="relative w-full max-w-2xl mx-auto">
@@ -413,6 +495,216 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
               </Alert>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+            </TabsContent>
+            
+            <TabsContent value="dependencies" className="mt-6">
+              {/* Dependencies View */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Dependency Analysis</h3>
+                {enhancedItems.length > 0 ? (
+                  <div className="space-y-3">
+                    {enhancedItems
+                      .sort((a, b) => b.priorityScore.overall - a.priorityScore.overall)
+                      .map((item) => (
+                      <div key={item.id} className="p-4 border rounded-lg">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h4 className="font-medium">{item.name}</h4>
+                            <p className="text-sm text-muted-foreground">{item.category}</p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="outline" className="mb-1">
+                              Score: {item.priorityScore.overall}
+                            </Badge>
+                            <div className="text-sm text-muted-foreground">
+                              {CostUtils.formatCurrency(item.cost)}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Dependencies Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium">Depends On:</span>
+                            <div className="text-muted-foreground">
+                              {item.dependencies.dependsOn.length > 0 ? 
+                                item.dependencies.dependsOn.join(', ') : 'None'}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Blocks:</span>
+                            <div className="text-muted-foreground">
+                              {item.dependencies.dependents.length} items
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Phase:</span>
+                            <div className="text-muted-foreground">
+                              Phase {item.dependencies.phase}
+                              {item.dependencies.criticalPath && (
+                                <Badge variant="destructive" className="ml-2 text-xs">Critical</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Priority Score Breakdown */}
+                        <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+                          <div className="text-center">
+                            <div className="font-medium">Urgency</div>
+                            <div>{item.priorityScore.components.urgency}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">ROI</div>
+                            <div>{item.priorityScore.components.roiImpact}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">Risk</div>
+                            <div>{item.priorityScore.components.riskMitigation}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">Deps</div>
+                            <div>{item.priorityScore.components.dependencies}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">Timing</div>
+                            <div>{item.priorityScore.components.marketTiming}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium">Complex</div>
+                            <div>{item.priorityScore.components.complexity}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Network className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No scope items found for dependency analysis.</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="timeline" className="mt-6">
+              {/* Critical Path View */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Critical Path Analysis</h3>
+                {project.scopeItems && project.scopeItems.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Phase Timeline */}
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4].map(phase => {
+                        const phaseItems = enhancedItems.filter(item => item.dependencies.phase === phase)
+                        if (phaseItems.length === 0) return null
+                        
+                        return (
+                          <div key={phase} className="p-4 border rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                {phase}
+                              </div>
+                              <span className="font-medium">Phase {phase}</span>
+                              <Badge variant="outline">
+                                {Math.max(...phaseItems.map(item => 
+                                  project.scopeItems?.find(si => si.id === item.id)?.daysRequired || 0
+                                ))} days
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {phaseItems.map(item => (
+                                <div key={item.id} className={cn(
+                                  "p-2 rounded text-sm",
+                                  item.dependencies.criticalPath ? "bg-red-100 border border-red-300" : "bg-muted/50"
+                                )}>
+                                  <div className="font-medium">{item.name}</div>
+                                  <div className="text-muted-foreground">
+                                    {CostUtils.formatCurrency(item.cost)}
+                                    {item.dependencies.criticalPath && (
+                                      <Badge variant="destructive" className="ml-1 text-xs">Critical</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No scope items found for timeline analysis.</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="recommendations" className="mt-6">
+              {/* AI Insights View */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">AI-Powered Recommendations</h3>
+                {enhancedItems.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Top Priority Items */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Zap className="w-4 h-4" />
+                          High Priority Actions
+                        </CardTitle>
+                        <CardDescription>
+                          Items that should be prioritized based on AI analysis
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {enhancedItems
+                            .filter(item => item.priorityScore.overall > 70)
+                            .slice(0, 5)
+                            .map((item) => (
+                            <div key={item.id} className="p-3 border rounded-lg">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h4 className="font-medium">{item.name}</h4>
+                                  <Badge variant="default" className="mt-1">
+                                    Priority Score: {item.priorityScore.overall}
+                                  </Badge>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-medium">{CostUtils.formatCurrency(item.cost)}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    +{item.roiImpact.toFixed(1)}% ROI
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                {item.priorityScore.reasoning.map((reason, index) => (
+                                  <div key={index} className="text-sm text-muted-foreground">
+                                    • {reason}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Complete scope building to see AI recommendations.</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
