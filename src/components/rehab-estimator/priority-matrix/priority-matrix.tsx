@@ -257,7 +257,6 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
             
             <TabsContent value="matrix" className="mt-6">
               {/* Original Matrix Visualization */}
-        <CardContent>
           {/* Matrix Grid */}
           <div className="relative w-full max-w-2xl mx-auto">
             {/* Y-axis label */}
