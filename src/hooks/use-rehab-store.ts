@@ -31,7 +31,7 @@ interface RehabStore {
   // Actions
   updateProject: (updates: Partial<RehabProject>) => void
   setCurrentStep: (step: number) => void
-  completeStep: (stepId: number, data: any) => void
+  completeStep: (stepId: number, data: Record<string, unknown>) => void
   goToNextStep: () => void
   goToPreviousStep: () => void
   resetProject: () => void
@@ -181,17 +181,16 @@ export const useRehabStore = create<RehabStore>()(
         set({ loading: true, error: null })
         
         try {
-          // TODO: Implement Supabase load
-          // const supabase = createClientComponentClient()
-          // const { data, error } = await supabase
-          //   .from('rehab_projects')
-          //   .select('*')
-          //   .eq('id', projectId)
-          //   .single()
+          // Import the project service
+          const { projectService } = await import('@/lib/supabase/database')
           
-          // if (error) throw error
+          const project = await projectService.getById(projectId)
           
-          // set({ project: data })
+          if (project) {
+            set({ project })
+          } else {
+            throw new Error('Project not found')
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to load project'
           set({ error: errorMessage })
@@ -204,14 +203,16 @@ export const useRehabStore = create<RehabStore>()(
         set({ loading: true, error: null })
         
         try {
-          // TODO: Implement Supabase delete
-          // const supabase = createClientComponentClient()
-          // const { error } = await supabase
-          //   .from('rehab_projects')
-          //   .delete()
-          //   .eq('id', projectId)
+          // Import the project service
+          const { projectService } = await import('@/lib/supabase/database')
           
-          // if (error) throw error
+          const success = await projectService.delete(projectId)
+          
+          if (success) {
+            set({ project: {} })
+          } else {
+            throw new Error('Failed to delete project')
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to delete project'
           set({ error: errorMessage })
