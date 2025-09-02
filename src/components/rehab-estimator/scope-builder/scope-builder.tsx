@@ -36,6 +36,8 @@ import {
   COST_CATEGORIES,
   QUALITY_TIERS
 } from '@/lib/cost-calculator'
+import { AssessmentScopeGenerator } from '@/lib/cost-calculator/assessment-integration'
+import { useRehabStore } from '@/hooks/use-rehab-store'
 
 interface ScopeBuilderProps {
   project: Partial<RehabProject>
@@ -55,6 +57,11 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
   const [qualityTier, setQualityTier] = useState<keyof typeof QUALITY_TIERS>('standard')
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingFromAssessment, setIsGeneratingFromAssessment] = useState(false)
+  
+  // Get assessment data from store
+  const store = useRehabStore()
+  const assessmentData = store.project.assessments
   const [customItem, setCustomItem] = useState({
     name: '',
     category: 'interior',
@@ -161,58 +168,74 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
     }))
   }
 
+  const generateFromAssessment = async () => {
+    if (!assessmentData || Object.keys(assessmentData).length === 0) {
+      alert('No property assessment data found. Please complete the property assessment first.')
+      return
+    }
+    
+    setIsGeneratingFromAssessment(true)
+    
+    try {
+      // Generate scope items from assessment data
+      const generatedItems = AssessmentScopeGenerator.generateScopeFromAssessments(
+        assessmentData,
+        location,
+        qualityTier
+      )
+      
+      // Add generated items to existing scope
+      setScopeItems([...scopeItems, ...generatedItems])
+      
+      setTimeout(() => {
+        setIsGeneratingFromAssessment(false)
+      }, 1500)
+      
+    } catch (error) {
+      console.error('Error generating scope from assessment:', error)
+      setIsGeneratingFromAssessment(false)
+    }
+  }
+
   const generateSmartRecommendations = async () => {
     setIsGenerating(true)
     
-    // Simulate AI recommendations based on project data
+    // Use our cost database for smarter recommendations
     setTimeout(() => {
       const recommendations: ScopeItem[] = []
       
       // Kitchen recommendations based on property type and condition
       if (project.propertyType === 'single_family' && project.squareFeet && project.squareFeet > 1500) {
-        recommendations.push({
-          id: `rec-${Date.now()}-1`,
-          projectId: project.id || '',
-          category: 'Kitchen',
-          itemName: 'Cabinet Replacement',
-          description: 'Recommended for better resale value',
-          location: 'Kitchen',
-          quantity: 1,
-          unitOfMeasure: 'each',
-          materialCost: 8000,
-          laborCost: 4000,
-          totalCost: 12000,
-          priority: 'should',
-          roiImpact: 15,
-          daysRequired: 5,
-          dependsOn: [],
-          phase: 1,
-          included: true,
-          completed: false
-        })
-      }
-
-      // Bathroom recommendations
-      if (project.bathrooms && project.bathrooms >= 2) {
-        recommendations.push({
-          id: `rec-${Date.now()}-2`,
-          projectId: project.id || '',
-          category: 'Bathroom',
-          itemName: 'Vanity Replacement',
-          description: 'High ROI bathroom upgrade',
-          location: 'Master Bathroom',
-          quantity: 1,
-          unitOfMeasure: 'each',
-          materialCost: 1200,
-          laborCost: 800,
-          totalCost: 2000,
-          priority: 'should',
-          roiImpact: 12,
-          daysRequired: 2,
-          dependsOn: [],
-          phase: 1,
-          included: true,
-          completed: false
+        const kitchenItems = getCostItemsBySubcategory('interior', 'kitchen')
+        kitchenItems.forEach(costItem => {
+          const costResult = CostCalculationEngine.calculateItemCost({
+            item: costItem,
+            quantity: costItem.itemName.includes('Cabinet') ? 15 : costItem.itemName.includes('Countertop') ? 40 : 1,
+            qualityTier,
+            location
+          })
+          
+          recommendations.push({
+            id: `rec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            projectId: project.id || '',
+            category: costItem.category,
+            subcategory: costItem.subcategory,
+            itemName: costItem.itemName,
+            description: 'Recommended for better resale value',
+            location: 'Kitchen',
+            quantity: costItem.itemName.includes('Cabinet') ? 15 : costItem.itemName.includes('Countertop') ? 40 : 1,
+            unitOfMeasure: costItem.unit,
+            materialCost: costResult.materialCost,
+            laborCost: costResult.laborCost,
+            totalCost: costResult.totalCost,
+            priority: 'should',
+            roiImpact: costResult.factors.quality * 12,
+            daysRequired: costResult.timelineEstimate,
+            dependsOn: [],
+            phase: 1,
+            included: true,
+            completed: false
+          })
         })
       }
 
@@ -228,22 +251,44 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
 
   return (
     <div className="space-y-6">
-      {/* Smart Recommendations */}
+      {/* Smart Scope Generation */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Sparkles className="w-5 h-5" />
-            <span>Smart Recommendations</span>
+            <span>Smart Scope Generation</span>
           </CardTitle>
           <CardDescription>
-            Generate AI-powered renovation recommendations based on your property assessment
+            Generate renovation scope automatically from your property assessment or get AI-powered suggestions
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {/* Generate from Assessment */}
+          <Button 
+            onClick={generateFromAssessment} 
+            disabled={isGeneratingFromAssessment || !assessmentData}
+            className="w-full"
+            variant="default"
+          >
+            <CheckCircle className="w-4 h-4 mr-2" />
+            {isGeneratingFromAssessment ? 'Generating from Assessment...' : 'Generate from Property Assessment'}
+          </Button>
+          
+          {!assessmentData && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Complete the property assessment first to enable automatic scope generation.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Smart Recommendations */}
           <Button 
             onClick={generateSmartRecommendations}
             disabled={isGenerating}
             className="w-full"
+            variant="outline"
           >
             <Sparkles className="w-4 h-4 mr-2" />
             {isGenerating ? 'Generating Recommendations...' : 'Generate Smart Recommendations'}
