@@ -59,28 +59,14 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
     marketConditions: 'balanced' as const
   }
 
-  // Initialize matrix when scope items change
-  useEffect(() => {
-    if (project.scopeItems) {
-      const items: PriorityMatrixItem[] = project.scopeItems.map(item => ({
-        id: item.id,
-        name: item.itemName,
-        category: getCategoryFromItem(item),
-        roiImpact: item.roiImpact,
-        urgency: calculateUrgency(item),
-        cost: item.totalCost,
-        priority: item.priority,
-        included: item.included
-      }))
-      
-      // Generate enhanced items with advanced scoring
-      const enhanced = generateEnhancedItems(project.scopeItems, projectContext)
-      
-      setMatrixItems(items)
-      setEnhancedItems(enhanced)
-      generateMatrix(items)
-    }
-  }, [project.scopeItems])
+  // Get current season helper
+  function getCurrentSeason(): 'spring' | 'summer' | 'fall' | 'winter' {
+    const month = new Date().getMonth()
+    if (month >= 2 && month <= 4) return 'spring'
+    if (month >= 5 && month <= 7) return 'summer'
+    if (month >= 8 && month <= 10) return 'fall'
+    return 'winter'
+  }
 
   // Generate enhanced priority items with advanced scoring
   const generateEnhancedItems = (scopeItems: ScopeItem[], context: any): PriorityMatrixEnhanced[] => {
@@ -116,14 +102,28 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
     })
   }
 
-  // Get current season helper
-  function getCurrentSeason(): 'spring' | 'summer' | 'fall' | 'winter' {
-    const month = new Date().getMonth()
-    if (month >= 2 && month <= 4) return 'spring'
-    if (month >= 5 && month <= 7) return 'summer'
-    if (month >= 8 && month <= 10) return 'fall'
-    return 'winter'
-  }
+  // Initialize matrix when scope items change
+  useEffect(() => {
+    if (project.scopeItems) {
+      const items: PriorityMatrixItem[] = project.scopeItems.map(item => ({
+        id: item.id,
+        name: item.itemName,
+        category: getCategoryFromItem(item),
+        roiImpact: item.roiImpact,
+        urgency: calculateUrgency(item),
+        cost: item.totalCost,
+        priority: item.priority,
+        included: item.included
+      }))
+      
+      // Generate enhanced items with advanced scoring
+      const enhanced = generateEnhancedItems(project.scopeItems, projectContext)
+      
+      setMatrixItems(items)
+      setEnhancedItems(enhanced)
+      generateMatrix(items)
+    }
+  }, [project.scopeItems])
 
   const getCategoryFromItem = (item: ScopeItem): 'safety' | 'structural' | 'systems' | 'cosmetic' | 'optional' => {
     const category = item.category.toLowerCase()
@@ -170,31 +170,27 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
   }
 
   const generateMatrix = (items: PriorityMatrixItem[]) => {
-    const matrix: MatrixCell[][] = []
-    const cellSize = 20 // 5x5 grid (0-100 in steps of 20)
+    const cells: MatrixCell[][] = []
     
+    // Create 5x5 grid
     for (let y = 0; y < 5; y++) {
-      matrix[y] = []
+      cells[y] = []
       for (let x = 0; x < 5; x++) {
-        const minX = x * cellSize
-        const maxX = (x + 1) * cellSize
-        const minY = y * cellSize
-        const maxY = (y + 1) * cellSize
+        const cellX = x * 20 + 10 // 0-100 range
+        const cellY = (4 - y) * 20 + 10 // Invert Y axis for display
         
-        const cellItems = items.filter(item => 
-          item.roiImpact >= minX && item.roiImpact < maxX &&
-          item.urgency >= minY && item.urgency < maxY
-        )
+        const cellItems = items.filter(item => {
+          const itemX = item.roiImpact
+          const itemY = item.urgency
+          return itemX >= cellX - 10 && itemX < cellX + 10 &&
+                 itemY >= cellY - 10 && itemY < cellY + 10
+        })
         
-        matrix[y][x] = {
-          x: minX + cellSize / 2,
-          y: minY + cellSize / 2,
-          items: cellItems
-        }
+        cells[y][x] = { x: cellX, y: cellY, items: cellItems }
       }
     }
     
-    setMatrixCells(matrix)
+    setMatrixCells(cells)
   }
 
   const getQuadrantColor = (x: number, y: number): string => {
@@ -226,12 +222,11 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
   }
 
   const handleSubmit = () => {
-    onNext({ matrixItems })
+    onNext({ matrixItems, enhancedItems })
   }
 
   const totalCost = matrixItems.reduce((sum, item) => sum + item.cost, 0)
   const totalROI = matrixItems.reduce((sum, item) => sum + item.roiImpact, 0)
-  const avgUrgency = matrixItems.length > 0 ? matrixItems.reduce((sum, item) => sum + item.urgency, 0) / matrixItems.length : 0
 
   return (
     <div className="space-y-6">
@@ -256,247 +251,66 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
             </TabsList>
             
             <TabsContent value="matrix" className="mt-6">
-              {/* Original Matrix Visualization */}
-          {/* Matrix Grid */}
-          <div className="relative w-full max-w-2xl mx-auto">
-            {/* Y-axis label */}
-            <div className="absolute -left-8 top-1/2 transform -translate-y-1/2 -rotate-90 text-sm font-medium">
-              Urgency
-            </div>
-            
-            {/* X-axis label */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-sm font-medium">
-              ROI Impact
-            </div>
-            
-            {/* Matrix Grid */}
-            <div className="grid grid-cols-5 grid-rows-5 gap-1 border-2 border-gray-300 rounded-lg p-2">
-              {matrixCells.map((row, y) => 
-                row.map((cell, x) => (
-                  <div
-                    key={`${x}-${y}`}
-                    className={cn(
-                      "relative min-h-[80px] border rounded p-1 cursor-pointer transition-colors",
-                      getQuadrantColor(cell.x, cell.y),
-                      cell.items.length > 0 && "hover:bg-opacity-80"
-                    )}
-                    onClick={() => cell.items.length > 0 && handleItemClick(cell.items[0])}
-                  >
-                    {/* Quadrant Label */}
-                    <div className="absolute top-1 left-1 text-xs font-medium text-gray-600">
-                      {getQuadrantLabel(cell.x, cell.y)}
-                    </div>
-                    
-                    {/* Items in cell */}
-                    {cell.items.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className={cn(
-                          "absolute w-3 h-3 rounded-full border-2 border-white shadow-sm",
-                          getCategoryColor(item.category),
-                          selectedItem?.id === item.id && "ring-2 ring-blue-500 ring-offset-2"
-                        )}
-                        style={{
-                          left: `${20 + (index % 3) * 8}%`,
-                          top: `${20 + Math.floor(index / 3) * 8}%`
-                        }}
-                        title={`${item.name} (ROI: ${item.roiImpact}%, Urgency: ${item.urgency}%)`}
-                      />
-                    ))}
-                    
-                    {/* Item count */}
-                    {cell.items.length > 0 && (
-                      <div className="absolute bottom-1 right-1 text-xs font-medium text-gray-600">
-                        {cell.items.length}
-                      </div>
+              {/* Matrix Visualization */}
+              <div className="space-y-4">
+                <div className="relative w-full max-w-2xl mx-auto">
+                  {/* Y-axis label */}
+                  <div className="absolute -left-8 top-1/2 transform -translate-y-1/2 -rotate-90 text-sm font-medium">
+                    Urgency
+                  </div>
+                  
+                  {/* X-axis label */}
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-sm font-medium">
+                    ROI Impact
+                  </div>
+                  
+                  {/* Matrix Grid */}
+                  <div className="grid grid-cols-5 grid-rows-5 gap-1 border-2 border-gray-300 rounded-lg p-2">
+                    {matrixCells.map((row, y) => 
+                      row.map((cell, x) => (
+                        <div
+                          key={`${x}-${y}`}
+                          className={cn(
+                            "relative min-h-[80px] border rounded p-1 cursor-pointer transition-colors",
+                            getQuadrantColor(cell.x, cell.y),
+                            cell.items.length > 0 && "hover:bg-opacity-80"
+                          )}
+                          onClick={() => cell.items.length > 0 && handleItemClick(cell.items[0])}
+                        >
+                          {/* Quadrant Label */}
+                          <div className="absolute top-1 left-1 text-xs font-medium text-gray-600">
+                            {getQuadrantLabel(cell.x, cell.y)}
+                          </div>
+                          
+                          {/* Items in cell */}
+                          {cell.items.map((item, index) => (
+                            <div
+                              key={item.id}
+                              className={cn(
+                                "absolute w-3 h-3 rounded-full border-2 border-white shadow-sm",
+                                getCategoryColor(item.category),
+                                selectedItem?.id === item.id && "ring-2 ring-blue-500 ring-offset-2"
+                              )}
+                              style={{
+                                left: `${20 + (index % 3) * 8}%`,
+                                top: `${20 + Math.floor(index / 3) * 8}%`
+                              }}
+                              title={`${item.name} (ROI: ${item.roiImpact}%, Urgency: ${item.urgency}%)`}
+                            />
+                          ))}
+                          
+                          {/* Item count */}
+                          {cell.items.length > 0 && (
+                            <div className="absolute bottom-1 right-1 text-xs font-medium text-gray-600">
+                              {cell.items.length}
+                            </div>
+                          )}
+                        </div>
+                      ))
                     )}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Selected Item Details */}
-      {selectedItem && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Item Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium">{selectedItem.name}</h3>
-                <div className="flex items-center space-x-2 mt-1">
-                  <Badge 
-                    variant="outline" 
-                    className={cn(getCategoryColor(selectedItem.category), "text-white")}
-                  >
-                    {selectedItem.category}
-                  </Badge>
-                  <Badge variant="outline">
-                    {selectedItem.priority}
-                  </Badge>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-3 bg-muted/50 rounded-lg">
-                  <TrendingUp className="w-6 h-6 mx-auto mb-1 text-green-600" />
-                  <div className="text-lg font-bold">{selectedItem.roiImpact}%</div>
-                  <div className="text-xs text-muted-foreground">ROI Impact</div>
-                </div>
-                <div className="text-center p-3 bg-muted/50 rounded-lg">
-                  <Clock className="w-6 h-6 mx-auto mb-1 text-blue-600" />
-                  <div className="text-lg font-bold">{selectedItem.urgency}%</div>
-                  <div className="text-xs text-muted-foreground">Urgency</div>
-                </div>
-                <div className="text-center p-3 bg-muted/50 rounded-lg">
-                  <DollarSign className="w-6 h-6 mx-auto mb-1 text-purple-600" />
-                  <div className="text-lg font-bold">${selectedItem.cost.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Cost</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Matrix Legend */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Matrix Legend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Quadrants */}
-            <div>
-              <h4 className="font-medium mb-3">Quadrants</h4>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-                  <span className="text-sm">Do First (High ROI, High Urgency)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded"></div>
-                  <span className="text-sm">Schedule (High ROI, Low Urgency)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></div>
-                  <span className="text-sm">Delegate (Low ROI, High Urgency)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-                  <span className="text-sm">Eliminate (Low ROI, Low Urgency)</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Categories */}
-            <div>
-              <h4 className="font-medium mb-3">Categories</h4>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-sm">Safety</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                  <span className="text-sm">Structural</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="text-sm">Systems</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Cosmetic</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-                  <span className="text-sm">Optional</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Priority Analysis Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <Target className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-              <div className="text-2xl font-bold">{matrixItems.length}</div>
-              <div className="text-sm text-muted-foreground">Total Items</div>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <DollarSign className="w-8 h-8 mx-auto mb-2 text-green-600" />
-              <div className="text-2xl font-bold">${totalCost.toLocaleString()}</div>
-              <div className="text-sm text-muted-foreground">Total Investment</div>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-              <div className="text-2xl font-bold">+{totalROI.toFixed(1)}%</div>
-              <div className="text-sm text-muted-foreground">Total ROI Impact</div>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <Clock className="w-8 h-8 mx-auto mb-2 text-orange-600" />
-              <div className="text-2xl font-bold">{avgUrgency.toFixed(0)}%</div>
-              <div className="text-sm text-muted-foreground">Avg Urgency</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recommendations */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Info className="w-5 h-5" />
-            <span>Priority Recommendations</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {matrixItems.filter(item => item.roiImpact >= 60 && item.urgency >= 60).length > 0 && (
-              <Alert>
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>High Priority Items:</strong> {matrixItems.filter(item => item.roiImpact >= 60 && item.urgency >= 60).length} items 
-                  should be completed first. These offer high ROI and are urgent.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {matrixItems.filter(item => item.roiImpact < 40 && item.urgency < 40).length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Low Priority Items:</strong> {matrixItems.filter(item => item.roiImpact < 40 && item.urgency < 40).length} items 
-                  have low ROI and urgency. Consider eliminating these to focus on higher-impact items.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {matrixItems.filter(item => item.category === 'safety').length > 0 && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Safety Items:</strong> {matrixItems.filter(item => item.category === 'safety').length} safety-related items 
-                  should be prioritized regardless of ROI due to code compliance and liability concerns.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
             </TabsContent>
             
             <TabsContent value="dependencies" className="mt-6">
@@ -524,34 +338,8 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
                           </div>
                         </div>
                         
-                        {/* Dependencies Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">Depends On:</span>
-                            <div className="text-muted-foreground">
-                              {item.dependencies.dependsOn.length > 0 ? 
-                                item.dependencies.dependsOn.join(', ') : 'None'}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Blocks:</span>
-                            <div className="text-muted-foreground">
-                              {item.dependencies.dependents.length} items
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Phase:</span>
-                            <div className="text-muted-foreground">
-                              Phase {item.dependencies.phase}
-                              {item.dependencies.criticalPath && (
-                                <Badge variant="destructive" className="ml-2 text-xs">Critical</Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        
                         {/* Priority Score Breakdown */}
-                        <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
                           <div className="text-center">
                             <div className="font-medium">Urgency</div>
                             <div>{item.priorityScore.components.urgency}</div>
@@ -651,49 +439,36 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
                 {enhancedItems.length > 0 ? (
                   <div className="space-y-4">
                     {/* Top Priority Items */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Zap className="w-4 h-4" />
-                          High Priority Actions
-                        </CardTitle>
-                        <CardDescription>
-                          Items that should be prioritized based on AI analysis
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {enhancedItems
-                            .filter(item => item.priorityScore.overall > 70)
-                            .slice(0, 5)
-                            .map((item) => (
-                            <div key={item.id} className="p-3 border rounded-lg">
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <h4 className="font-medium">{item.name}</h4>
-                                  <Badge variant="default" className="mt-1">
-                                    Priority Score: {item.priorityScore.overall}
-                                  </Badge>
-                                </div>
-                                <div className="text-right">
-                                  <div className="font-medium">{CostUtils.formatCurrency(item.cost)}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    +{item.roiImpact.toFixed(1)}% ROI
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                {item.priorityScore.reasoning.map((reason, index) => (
-                                  <div key={index} className="text-sm text-muted-foreground">
-                                    • {reason}
-                                  </div>
-                                ))}
+                    <div className="space-y-3">
+                      {enhancedItems
+                        .filter(item => item.priorityScore.overall > 70)
+                        .slice(0, 5)
+                        .map((item) => (
+                        <div key={item.id} className="p-3 border rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-medium">{item.name}</h4>
+                              <Badge variant="default" className="mt-1">
+                                Priority Score: {item.priorityScore.overall}
+                              </Badge>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium">{CostUtils.formatCurrency(item.cost)}</div>
+                              <div className="text-sm text-muted-foreground">
+                                +{item.roiImpact.toFixed(1)}% ROI
                               </div>
                             </div>
-                          ))}
+                          </div>
+                          <div className="space-y-1">
+                            {item.priorityScore.reasoning.map((reason, index) => (
+                              <div key={index} className="text-sm text-muted-foreground">
+                                • {reason}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
@@ -704,6 +479,39 @@ export function PriorityMatrix({ project, onNext, onBack }: PriorityMatrixProps)
               </div>
             </TabsContent>
           </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Summary Statistics */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Priority Analysis Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <Target className="w-8 h-8 mx-auto mb-2 text-blue-600" />
+              <div className="text-2xl font-bold">{matrixItems.length}</div>
+              <div className="text-sm text-muted-foreground">Total Items</div>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <DollarSign className="w-8 h-8 mx-auto mb-2 text-green-600" />
+              <div className="text-2xl font-bold">{CostUtils.formatCurrency(totalCost)}</div>
+              <div className="text-sm text-muted-foreground">Total Investment</div>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-600" />
+              <div className="text-2xl font-bold">+{totalROI.toFixed(1)}%</div>
+              <div className="text-sm text-muted-foreground">Total ROI Impact</div>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <Zap className="w-8 h-8 mx-auto mb-2 text-orange-600" />
+              <div className="text-2xl font-bold">
+                {enhancedItems.filter(item => item.priorityScore.overall > 70).length}
+              </div>
+              <div className="text-sm text-muted-foreground">High Priority</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
