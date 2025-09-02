@@ -30,4 +30,24 @@ export const Icons = {
       />
     </svg>
   ),
+  microsoft: (props: LucideProps) => (
+    <svg viewBox="0 0 24 24" {...props}>
+      <path
+        fill="#F25022"
+        d="M0 0h11.2v11.2H0z"
+      />
+      <path
+        fill="#7FBA00"
+        d="M12.8 0H24v11.2H12.8z"
+      />
+      <path
+        fill="#00A4EF"
+        d="M0 12.8h11.2V24H0z"
+      />
+      <path
+        fill="#FFB900"
+        d="M12.8 12.8H24V24H12.8z"
+      />
+    </svg>
+  ),
 }

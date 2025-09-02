@@ -1,3 +1,5 @@
+'use client'
+
 import { ReactNode } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { UserProfile } from '@/components/auth/user-profile'

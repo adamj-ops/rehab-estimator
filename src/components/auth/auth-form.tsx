@@ -123,7 +123,7 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
     }
   }
 
-  const handleOAuthSignIn = async (provider: 'google' | 'github') => {
+  const handleOAuthSignIn = async (provider: 'google' | 'github' | 'microsoft') => {
     setIsLoading(true)
     setError(null)
     
@@ -408,7 +408,16 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
       
       <CardContent className="space-y-4">
         {/* OAuth Buttons */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
+          <Button
+            variant="outline"
+            onClick={() => handleOAuthSignIn('google')}
+            disabled={isLoading}
+            className="w-full"
+          >
+            <Icons.google className="mr-2 h-4 w-4" />
+            Google
+          </Button>
           <Button
             variant="outline"
             onClick={() => handleOAuthSignIn('github')}
@@ -420,12 +429,12 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
           </Button>
           <Button
             variant="outline"
-            onClick={() => handleOAuthSignIn('google')}
+            onClick={() => handleOAuthSignIn('microsoft')}
             disabled={isLoading}
             className="w-full"
           >
-            <Icons.google className="mr-2 h-4 w-4" />
-            Google
+            <Icons.microsoft className="mr-2 h-4 w-4" />
+            Microsoft
           </Button>
         </div>
 
