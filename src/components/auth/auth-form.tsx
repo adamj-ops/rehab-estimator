@@ -330,7 +330,10 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
             <div className="flex items-start space-x-2">
               <Checkbox
                 id="terms"
-                {...signUpForm.register('agreedToTerms')}
+                checked={signUpForm.watch('agreedToTerms')}
+                onCheckedChange={(checked) => 
+                  signUpForm.setValue('agreedToTerms', checked === true)
+                }
                 disabled={isLoading}
               />
               <Label
