@@ -21,54 +21,26 @@ import {
   TrendingUp,
   Target,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  MapPin,
+  Star,
+  Info
 } from 'lucide-react'
 import { RehabProject, ScopeItem } from '@/types/rehab'
 import { cn } from '@/lib/utils'
+import { 
+  CostCalculationEngine, 
+  CostUtils, 
+  ScopeIntegration,
+  getCostItemsByCategory,
+  COST_CATEGORIES,
+  QUALITY_TIERS
+} from '@/lib/cost-calculator'
 
 interface ScopeBuilderProps {
   project: Partial<RehabProject>
   onNext: (data: any) => void
   onBack: () => void
-}
-
-// Predefined scope categories and items
-const scopeCategories = {
-  'Kitchen': [
-    { name: 'Cabinet Replacement', materialCost: 8000, laborCost: 4000, days: 5, roiImpact: 15 },
-    { name: 'Countertop Replacement', materialCost: 3000, laborCost: 1500, days: 2, roiImpact: 12 },
-    { name: 'Appliance Upgrade', materialCost: 5000, laborCost: 800, days: 1, roiImpact: 10 },
-    { name: 'Backsplash Installation', materialCost: 800, laborCost: 600, days: 1, roiImpact: 8 },
-    { name: 'Lighting Upgrade', materialCost: 400, laborCost: 300, days: 1, roiImpact: 6 }
-  ],
-  'Bathroom': [
-    { name: 'Vanity Replacement', materialCost: 1200, laborCost: 800, days: 2, roiImpact: 12 },
-    { name: 'Tub/Shower Replacement', materialCost: 2500, laborCost: 1500, days: 3, roiImpact: 14 },
-    { name: 'Tile Installation', materialCost: 1500, laborCost: 1200, days: 2, roiImpact: 10 },
-    { name: 'Plumbing Fixtures', materialCost: 600, laborCost: 400, days: 1, roiImpact: 8 },
-    { name: 'Ventilation Fan', materialCost: 200, laborCost: 300, days: 1, roiImpact: 5 }
-  ],
-  'Interior': [
-    { name: 'Paint Interior', materialCost: 800, laborCost: 2000, days: 3, roiImpact: 8 },
-    { name: 'Flooring Replacement', materialCost: 4000, laborCost: 3000, days: 4, roiImpact: 12 },
-    { name: 'Trim/Baseboards', materialCost: 600, laborCost: 800, days: 2, roiImpact: 6 },
-    { name: 'Interior Doors', materialCost: 1200, laborCost: 1000, days: 2, roiImpact: 8 },
-    { name: 'Window Treatments', materialCost: 800, laborCost: 400, days: 1, roiImpact: 4 }
-  ],
-  'Exterior': [
-    { name: 'Paint Exterior', materialCost: 1200, laborCost: 3000, days: 4, roiImpact: 10 },
-    { name: 'Roof Repair/Replacement', materialCost: 8000, laborCost: 4000, days: 5, roiImpact: 15 },
-    { name: 'Siding Repair', materialCost: 2000, laborCost: 1500, days: 3, roiImpact: 12 },
-    { name: 'Gutters & Downspouts', materialCost: 800, laborCost: 600, days: 1, roiImpact: 6 },
-    { name: 'Landscaping', materialCost: 1500, laborCost: 1000, days: 2, roiImpact: 8 }
-  ],
-  'Systems': [
-    { name: 'HVAC Replacement', materialCost: 6000, laborCost: 2000, days: 2, roiImpact: 12 },
-    { name: 'Electrical Panel Upgrade', materialCost: 1500, laborCost: 1200, days: 1, roiImpact: 10 },
-    { name: 'Plumbing Repairs', materialCost: 1000, laborCost: 800, days: 1, roiImpact: 8 },
-    { name: 'Water Heater', materialCost: 800, laborCost: 400, days: 1, roiImpact: 6 },
-    { name: 'Smoke Detectors', materialCost: 200, laborCost: 100, days: 1, roiImpact: 4 }
-  ]
 }
 
 const priorityOptions = [
@@ -79,39 +51,63 @@ const priorityOptions = [
 ]
 
 export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
-  const [selectedCategory, setSelectedCategory] = useState('Kitchen')
+  const [selectedCategory, setSelectedCategory] = useState('interior')
+  const [qualityTier, setQualityTier] = useState<keyof typeof QUALITY_TIERS>('standard')
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [customItem, setCustomItem] = useState({
     name: '',
-    category: 'Kitchen',
+    category: 'interior',
     materialCost: 0,
     laborCost: 0,
     days: 1,
     priority: 'should' as const
   })
 
+  // Get location data for cost calculations
+  const location = {
+    zipCode: project.address?.zip || '30301', // Default to Atlanta
+    state: project.address?.state || 'GA'
+  }
+
+  // Get available cost items for selected category
+  const availableCostItems = getCostItemsByCategory(selectedCategory)
+
   // Calculate totals
   const totalCost = scopeItems.reduce((sum, item) => sum + item.totalCost, 0)
   const totalDays = scopeItems.reduce((sum, item) => sum + item.daysRequired, 0)
   const totalROI = scopeItems.reduce((sum, item) => sum + item.roiImpact, 0)
 
-  const addScopeItem = (item: any) => {
+  const addScopeItem = (costItem: any, quantity: number = 1) => {
+    // Calculate real costs using our cost engine
+    const costResult = CostCalculationEngine.calculateItemCost({
+      item: costItem,
+      quantity,
+      qualityTier,
+      location,
+      projectConditions: {
+        urgency: 'medium',
+        complexity: 'moderate',
+        accessibility: 'moderate'
+      }
+    })
+
     const newItem: ScopeItem = {
       id: `item-${Date.now()}`,
       projectId: project.id || '',
-      category: item.category || selectedCategory,
-      itemName: item.name,
-      description: '',
+      category: costItem.category,
+      subcategory: costItem.subcategory,
+      itemName: costItem.itemName,
+      description: costItem.description || '',
       location: '',
-      quantity: 1,
-      unitOfMeasure: 'each',
-      materialCost: item.materialCost,
-      laborCost: item.laborCost,
-      totalCost: item.materialCost + item.laborCost,
-      priority: item.priority || 'should',
-      roiImpact: item.roiImpact,
-      daysRequired: item.days,
+      quantity,
+      unitOfMeasure: costItem.unit,
+      materialCost: costResult.materialCost,
+      laborCost: costResult.laborCost,
+      totalCost: costResult.totalCost,
+      priority: 'should',
+      roiImpact: costResult.factors.quality * 10, // Estimated ROI impact
+      daysRequired: costResult.timelineEstimate,
       dependsOn: [],
       phase: 1,
       included: true,
@@ -131,9 +127,38 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
   }
 
   const updateScopeItem = (itemId: string, updates: Partial<ScopeItem>) => {
-    setScopeItems(scopeItems.map(item => 
-      item.id === itemId ? { ...item, ...updates } : item
-    ))
+    setScopeItems(scopeItems.map(item => {
+      if (item.id === itemId) {
+        const updatedItem = { ...item, ...updates }
+        
+        // If quantity changed, recalculate costs
+        if (updates.quantity && updates.quantity !== item.quantity) {
+          // Find the original cost item to recalculate
+          const costItem = availableCostItems.find(ci => ci.itemName === item.itemName)
+          if (costItem) {
+            const costResult = CostCalculationEngine.calculateItemCost({
+              item: costItem,
+              quantity: updates.quantity,
+              qualityTier,
+              location,
+              projectConditions: {
+                urgency: 'medium',
+                complexity: 'moderate',
+                accessibility: 'moderate'
+              }
+            })
+            
+            updatedItem.materialCost = costResult.materialCost
+            updatedItem.laborCost = costResult.laborCost
+            updatedItem.totalCost = costResult.totalCost
+            updatedItem.daysRequired = costResult.timelineEstimate
+          }
+        }
+        
+        return updatedItem
+      }
+      return item
+    }))
   }
 
   const generateSmartRecommendations = async () => {
@@ -226,6 +251,70 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
         </CardContent>
       </Card>
 
+      {/* Quality & Location Settings */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Star className="w-5 h-5" />
+            Cost Calculation Settings
+          </CardTitle>
+          <CardDescription>
+            These settings affect all cost calculations for your project
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Quality Tier Selector */}
+            <div>
+              <Label className="flex items-center gap-2">
+                <Star className="w-4 h-4" />
+                Quality Tier
+              </Label>
+              <Select value={qualityTier} onValueChange={(value: keyof typeof QUALITY_TIERS) => setQualityTier(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(QUALITY_TIERS).map(([tier, config]) => (
+                    <SelectItem key={tier} value={tier}>
+                      <div className="flex items-center gap-2">
+                        <span className="capitalize">{tier}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {tier === 'budget' ? '-25%' : tier === 'premium' ? '+50%' : tier === 'luxury' ? '+120%' : 'Standard'}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location Display */}
+            <div>
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Location
+              </Label>
+              <div className="p-2 bg-muted rounded-md text-sm">
+                {project.address?.city ? `${project.address.city}, ${project.address.state}` : 'Atlanta, GA (Default)'}
+              </div>
+            </div>
+
+            {/* Quality Info */}
+            <div>
+              <Label className="flex items-center gap-2">
+                <Info className="w-4 h-4" />
+                Current Multipliers
+              </Label>
+              <div className="p-2 bg-muted rounded-md text-sm">
+                Materials: {QUALITY_TIERS[qualityTier].materials}x<br/>
+                Labor: {QUALITY_TIERS[qualityTier].labor}x
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Scope Builder */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Available Items */}
@@ -246,9 +335,12 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.keys(scopeCategories).map(category => (
-                      <SelectItem key={category} value={category}>
-                        {category}
+                    {COST_CATEGORIES.map(category => (
+                      <SelectItem key={category.id} value={category.id}>
+                        <div>
+                          <div className="font-medium">{category.name}</div>
+                          <div className="text-xs text-muted-foreground">{category.description}</div>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -257,20 +349,37 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
 
               {/* Items in Category */}
               <div className="space-y-2">
-                {scopeCategories[selectedCategory as keyof typeof scopeCategories]?.map((item, index) => (
-                  <div key={index} className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                       onClick={() => addScopeItem({ ...item, category: selectedCategory })}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          ${(item.materialCost + item.laborCost).toLocaleString()} • {item.days} days
+                {availableCostItems.map((item, index) => {
+                  // Calculate preview cost
+                  const previewCost = CostCalculationEngine.calculateItemCost({
+                    item,
+                    quantity: 1,
+                    qualityTier,
+                    location
+                  })
+                  
+                  return (
+                    <div key={index} className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                         onClick={() => addScopeItem(item, 1)}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium">{item.itemName}</div>
+                          <div className="text-xs text-muted-foreground mb-1">
+                            {item.description}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span>{CostUtils.formatCurrency(previewCost.totalCost)} per {item.unit}</span>
+                            <span>{previewCost.timelineEstimate} days</span>
+                            <Badge variant="outline" className="text-xs">
+                              {Math.round(previewCost.confidenceLevel * 100)}% confidence
+                            </Badge>
+                          </div>
                         </div>
+                        <Plus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       </div>
-                      <Plus className="w-4 h-4 text-muted-foreground" />
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Custom Item */}
@@ -381,22 +490,34 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-4 gap-4 text-sm">
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                         <div>
                           <div className="text-muted-foreground">Total Cost</div>
-                          <div className="font-medium">${item.totalCost.toLocaleString()}</div>
+                          <div className="font-medium text-lg">{CostUtils.formatCurrency(item.totalCost)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {CostUtils.formatCurrency(item.totalCost / item.quantity)} per {item.unitOfMeasure}
+                          </div>
                         </div>
                         <div>
                           <div className="text-muted-foreground">Materials</div>
-                          <div className="font-medium">${item.materialCost.toLocaleString()}</div>
+                          <div className="font-medium">{CostUtils.formatCurrency(item.materialCost)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {Math.round((item.materialCost / item.totalCost) * 100)}% of total
+                          </div>
                         </div>
                         <div>
                           <div className="text-muted-foreground">Labor</div>
-                          <div className="font-medium">${item.laborCost.toLocaleString()}</div>
+                          <div className="font-medium">{CostUtils.formatCurrency(item.laborCost)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {Math.round((item.laborCost / item.totalCost) * 100)}% of total
+                          </div>
                         </div>
                         <div>
-                          <div className="text-muted-foreground">Days</div>
-                          <div className="font-medium">{item.daysRequired}</div>
+                          <div className="text-muted-foreground">Timeline</div>
+                          <div className="font-medium">{item.daysRequired} days</div>
+                          <div className="text-xs text-muted-foreground">
+                            ROI: {item.roiImpact.toFixed(1)}%
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -408,33 +529,108 @@ export function ScopeBuilder({ project, onNext, onBack }: ScopeBuilderProps) {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Enhanced Summary */}
       {scopeItems.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Scope Summary</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Project Cost Summary
+            </CardTitle>
+            <CardDescription>
+              Calculated using {qualityTier} quality tier for {location.zipCode ? `${project.address?.city}, ${project.address?.state}` : 'Atlanta, GA'}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            {/* Main Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <DollarSign className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                <div className="text-2xl font-bold">${totalCost.toLocaleString()}</div>
-                <div className="text-sm text-muted-foreground">Total Cost</div>
+                <div className="text-2xl font-bold">{CostUtils.formatCurrency(totalCost)}</div>
+                <div className="text-sm text-muted-foreground">Total Project Cost</div>
+                {project.maxBudget && (
+                  <div className="text-xs mt-1">
+                    {Math.round((totalCost / project.maxBudget) * 100)}% of budget
+                  </div>
+                )}
               </div>
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <Calendar className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                <div className="text-2xl font-bold">{totalDays}</div>
-                <div className="text-sm text-muted-foreground">Total Days</div>
+                <div className="text-2xl font-bold">{Math.max(...scopeItems.map(item => item.daysRequired), 0)}</div>
+                <div className="text-sm text-muted-foreground">Project Timeline</div>
+                <div className="text-xs mt-1">
+                  {Math.ceil(Math.max(...scopeItems.map(item => item.daysRequired), 0) / 7)} weeks
+                </div>
               </div>
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-600" />
                 <div className="text-2xl font-bold">+{totalROI.toFixed(1)}%</div>
-                <div className="text-sm text-muted-foreground">ROI Impact</div>
+                <div className="text-sm text-muted-foreground">Est. ROI Impact</div>
+                <div className="text-xs mt-1">
+                  {CostUtils.formatCurrency(totalCost * (totalROI / 100))} value add
+                </div>
               </div>
               <div className="text-center p-4 bg-muted/50 rounded-lg">
                 <Target className="w-8 h-8 mx-auto mb-2 text-orange-600" />
-                <div className="text-2xl font-bold">{scopeItems.length}</div>
-                <div className="text-sm text-muted-foreground">Items</div>
+                <div className="text-2xl font-bold">{scopeItems.filter(item => item.included).length}</div>
+                <div className="text-sm text-muted-foreground">Included Items</div>
+                <div className="text-xs mt-1">
+                  {scopeItems.length} total items
+                </div>
+              </div>
+            </div>
+
+            {/* Cost Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium mb-3">Cost Breakdown</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Materials:</span>
+                    <span className="font-medium">{CostUtils.formatCurrency(scopeItems.reduce((sum, item) => sum + item.materialCost, 0))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Labor:</span>
+                    <span className="font-medium">{CostUtils.formatCurrency(scopeItems.reduce((sum, item) => sum + item.laborCost, 0))}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="font-medium">Subtotal:</span>
+                    <span className="font-medium">{CostUtils.formatCurrency(totalCost)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Contingency (10%):</span>
+                    <span>{CostUtils.formatCurrency(totalCost * 0.1)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2 font-bold">
+                    <span>Total with Contingency:</span>
+                    <span>{CostUtils.formatCurrency(totalCost * 1.1)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium mb-3">Quality Tier Impact</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Current Tier:</span>
+                    <Badge variant="outline" className="capitalize">{qualityTier}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Material Multiplier:</span>
+                    <span>{QUALITY_TIERS[qualityTier].materials}x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Labor Multiplier:</span>
+                    <span>{QUALITY_TIERS[qualityTier].labor}x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Timeline Impact:</span>
+                    <span>{QUALITY_TIERS[qualityTier].timeline}x</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Change quality tier above to see cost impact
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
