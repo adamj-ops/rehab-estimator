@@ -153,12 +153,19 @@
 }
 
 @layer base {
+  /* Optimized base font size for data-dense dashboard applications */
+  html {
+    font-size: 14px; /* Reduces all typography proportionally for tighter, more professional UI */
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
+  
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+    line-height: 1.6; /* Optimal readability for smaller base font */
   }
 }
 
@@ -207,5 +214,29 @@
   .auth-card {
     @apply shadow-2xl border-0;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Compact mode for data-dense dashboard sections */
+  .compact {
+    font-size: 0.9em;
+    line-height: 1.4;
+  }
+
+  .compact * {
+    line-height: 1.4;
+  }
+
+  /* High-density table and list styles */
+  .data-dense {
+    @apply text-xs leading-tight;
+  }
+
+  /* Tighter spacing for dashboard cards */
+  .dashboard-card {
+    @apply space-y-2;
+  }
+
+  .dashboard-card * {
+    @apply leading-snug;
   }
 }
