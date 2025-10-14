@@ -8,6 +8,7 @@ import {
   Settings2,
   LayoutDashboard,
   TrendingUp,
+  Users,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -88,6 +89,26 @@ function useNavigationData() {
           {
             title: "Final Review",
             url: "/rehab-estimator?step=7",
+          },
+        ],
+      },
+      {
+        title: "Vendors",
+        url: "/vendors",
+        icon: Users,
+        isActive: false,
+        items: [
+          {
+            title: "All Vendors",
+            url: "/vendors",
+          },
+          {
+            title: "Contractors",
+            url: "/vendors?type=contractor",
+          },
+          {
+            title: "Suppliers",
+            url: "/vendors?type=supplier",
           },
         ],
       },
