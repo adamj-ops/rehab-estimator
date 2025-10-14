@@ -1,11 +1,26 @@
 'use client'
 
-import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { CheckCircle, AlertTriangle, TrendingUp, Calendar, DollarSign } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { 
+  CheckCircle, 
+  AlertTriangle, 
+  TrendingUp, 
+  Calendar, 
+  DollarSign,
+  Download,
+  Share2,
+  Save,
+  ArrowLeft,
+  ArrowRight
+} from 'lucide-react'
+import { CostBreakdownChart, ROIAnalysisChart } from '@/components/charts'
+import { useRouter } from 'next/navigation'
 
 interface FinalReviewProps {
   project: any
@@ -14,13 +29,111 @@ interface FinalReviewProps {
 }
 
 export function FinalReview({ project, onNext, onBack }: FinalReviewProps) {
+  const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [estimateData, setEstimateData] = useState<any>(null)
+  const [roiData, setROIData] = useState<any>(null)
 
-  const handleSubmit = async () => {
+  useEffect(() => {
+    // Fetch estimate and ROI data
+    fetchEstimateData()
+    fetchROIData()
+  }, [project])
+
+  const fetchEstimateData = async () => {
+    try {
+      const response = await fetch('/api/calculations/estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scopeItems: project.scopeItems || []
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setEstimateData(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch estimate:', error)
+    }
+  }
+
+  const fetchROIData = async () => {
+    try {
+      const response = await fetch('/api/calculations/roi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purchasePrice: project.purchasePrice || 0,
+          rehabCost: estimateData?.totalCost || 0,
+          arv: project.arv || 0,
+          strategy: project.investmentStrategy || 'flip',
+          monthlyRent: project.monthlyRent
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setROIData(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch ROI:', error)
+    }
+  }
+
+  const handleSaveProject = async () => {
+    setIsSaving(true)
+    try {
+      // Save to database via API
+      const response = await fetch('/api/rehab/projects', {
+        method: project.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...project,
+          status: 'draft',
+          estimateData,
+          roiData
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Project saved:', data)
+      }
+    } catch (error) {
+      console.error('Failed to save project:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleFinalize = async () => {
     setIsSubmitting(true)
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    onNext({ status: 'completed' })
+    try {
+      // Save final version
+      const response = await fetch('/api/rehab/projects', {
+        method: project.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...project,
+          status: 'active',
+          estimateData,
+          roiData,
+          finalizedAt: new Date().toISOString()
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      console.error('Failed to finalize project:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const getProjectSummary = () => {
@@ -185,43 +298,115 @@ export function FinalReview({ project, onNext, onBack }: FinalReviewProps) {
         </CardContent>
       </Card>
 
+      {/* Data Visualizations */}
+      <Tabs defaultValue="cost" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="cost">Cost Analysis</TabsTrigger>
+          <TabsTrigger value="roi">ROI Projections</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="cost" className="mt-4">
+          {estimateData ? (
+            <CostBreakdownChart data={estimateData} />
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                Loading cost analysis...
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="roi" className="mt-4">
+          {roiData ? (
+            <ROIAnalysisChart data={roiData} />
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                Loading ROI analysis...
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+
       {/* Final Actions */}
       <Card>
         <CardHeader>
           <CardTitle>Ready to Proceed?</CardTitle>
+          <CardDescription>
+            Save your project or finalize to begin implementation
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-3 p-3 rounded-lg bg-green-50 border border-green-200">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <div>
-              <div className="font-medium text-green-800">All systems ready</div>
-              <div className="text-sm text-green-700">
-                Your rehab plan is optimized and ready for execution
-              </div>
-            </div>
-          </div>
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              Your rehab plan is complete and ready for execution. Save as draft to continue working later, 
+              or finalize to mark this project as active.
+            </AlertDescription>
+          </Alert>
           
-          <div className="text-sm text-muted-foreground">
-            By clicking "Finalize Project", you'll save this plan and can begin 
-            implementation. You can always make adjustments later.
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSaveProject}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Draft
+                </>
+              )}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => {/* Export functionality */}}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => {/* Share functionality */}}
+            >
+              <Share2 className="w-4 h-4 mr-2" />
+              Share
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Submit Handler - Navigation is handled by parent component */}
-      <div className="hidden">
+      {/* Navigation */}
+      <div className="flex justify-between pt-6">
+        <Button variant="outline" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+
         <Button 
-          onClick={handleSubmit} 
+          onClick={handleFinalize} 
           disabled={isSubmitting}
-          className="min-w-[120px]"
+          size="lg"
         >
           {isSubmitting ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Processing...
+              Finalizing...
             </>
           ) : (
-            'Finalize Project'
+            <>
+              Finalize & Start Project
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </>
           )}
         </Button>
       </div>
