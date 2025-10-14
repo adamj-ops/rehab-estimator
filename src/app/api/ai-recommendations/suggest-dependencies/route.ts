@@ -153,44 +153,45 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
 
-  private suggestCategoryDependencies(items: ScopeItem[]) {
-    const suggestions: any[] = []
-    
-    // Systems should depend on structural
-    const structural = items.filter(i => 
-      i.category.toLowerCase().includes('structural') ||
-      i.category.toLowerCase().includes('framing')
-    )
-    
-    const systems = items.filter(i =>
-      i.category.toLowerCase().includes('electrical') ||
-      i.category.toLowerCase().includes('plumbing') ||
-      i.category.toLowerCase().includes('hvac')
-    )
-    
-    systems.forEach(system => {
-      structural.forEach(struct => {
-        if (!system.dependsOn.includes(struct.id)) {
-          const existing = suggestions.find(s => s.taskId === system.id)
-          if (existing) {
-            existing.newDependencies.push(struct.id)
-          } else {
-            suggestions.push({
-              taskId: system.id,
-              taskName: system.itemName,
-              currentDependencies: system.dependsOn,
-              suggestedDependencies: [struct.id],
-              newDependencies: [struct.id],
-              reasoning: `${system.category} work typically requires ${struct.category} to be completed first`,
-              confidence: 0.75
-            })
-          }
+// Helper function for suggesting category-based dependencies
+function suggestCategoryDependencies(items: ScopeItem[]) {
+  const suggestions: any[] = []
+
+  // Systems should depend on structural
+  const structural = items.filter(i =>
+    i.category.toLowerCase().includes('structural') ||
+    i.category.toLowerCase().includes('framing')
+  )
+
+  const systems = items.filter(i =>
+    i.category.toLowerCase().includes('electrical') ||
+    i.category.toLowerCase().includes('plumbing') ||
+    i.category.toLowerCase().includes('hvac')
+  )
+
+  systems.forEach(system => {
+    structural.forEach(struct => {
+      if (!system.dependsOn.includes(struct.id)) {
+        const existing = suggestions.find(s => s.taskId === system.id)
+        if (existing) {
+          existing.newDependencies.push(struct.id)
+        } else {
+          suggestions.push({
+            taskId: system.id,
+            taskName: system.itemName,
+            currentDependencies: system.dependsOn,
+            suggestedDependencies: [struct.id],
+            newDependencies: [struct.id],
+            reasoning: `${system.category} work typically requires ${struct.category} to be completed first`,
+            confidence: 0.75
+          })
         }
-      })
+      }
     })
-    
-    return suggestions
-  }
+  })
+
+  return suggestions
 }
 

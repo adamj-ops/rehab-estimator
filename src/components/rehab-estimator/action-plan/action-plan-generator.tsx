@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  Calendar, 
-  Clock, 
-  DollarSign, 
-  Users, 
+import {
+  Calendar,
+  Clock,
+  DollarSign,
+  Users,
   TrendingUp,
   AlertTriangle,
   CheckCircle,
@@ -19,10 +19,18 @@ import {
   Play,
   Pause,
   Square,
-  Zap
+  Zap,
+  Network
 } from 'lucide-react'
 import { RehabProject, ScopeItem, ActionPlanPhase, ActionTask } from '@/types/rehab'
 import { cn } from '@/lib/utils'
+import dynamic from 'next/dynamic'
+
+// Lazy load the flow component for better performance
+const RenovationDependencyFlow = dynamic(
+  () => import('../flow/renovation-dependency-flow').then(mod => ({ default: mod.RenovationDependencyFlow })),
+  { ssr: false }
+)
 
 interface ActionPlanGeneratorProps {
   project: Partial<RehabProject>
@@ -48,7 +56,7 @@ export function ActionPlanGenerator({ project, onNext, onBack }: ActionPlanGener
   const [phases, setPhases] = useState<ActionPlanPhase[]>([])
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([])
   const [selectedPhase, setSelectedPhase] = useState<number>(1)
-  const [viewMode, setViewMode] = useState<'timeline' | 'phases' | 'contractors'>('timeline')
+  const [viewMode, setViewMode] = useState<'flow' | 'timeline' | 'phases' | 'contractors'>('flow')
 
   // Generate action plan when scope items change
   useEffect(() => {
@@ -273,11 +281,52 @@ export function ActionPlanGenerator({ project, onNext, onBack }: ActionPlanGener
 
       {/* Action Plan Tabs */}
       <Tabs value={viewMode} onValueChange={(value: any) => setViewMode(value)}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="flow" className="gap-2">
+            <Network className="w-4 h-4" />
+            Flow View
+          </TabsTrigger>
           <TabsTrigger value="timeline">Timeline View</TabsTrigger>
           <TabsTrigger value="phases">Phase Details</TabsTrigger>
           <TabsTrigger value="contractors">Contractor Schedule</TabsTrigger>
         </TabsList>
+
+        {/* Flow View - Interactive Dependency Visualization */}
+        <TabsContent value="flow" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Network className="w-5 h-5" />
+                    Renovation Dependency Flow
+                  </CardTitle>
+                  <CardDescription>
+                    Interactive visualization of task dependencies and critical path
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary" className="gap-1">
+                  <Zap className="w-3 h-3" />
+                  AI-Powered
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <RenovationDependencyFlow />
+
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <h4 className="font-semibold text-sm mb-2">How to use this view:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• <strong>Red animated edges</strong> show the critical path</li>
+                  <li>• <strong>Drag nodes</strong> to rearrange the layout</li>
+                  <li>• <strong>Zoom and pan</strong> to navigate large projects</li>
+                  <li>• <strong>Click nodes</strong> to see task details</li>
+                  <li>• <strong>Switch layouts</strong> using the buttons above</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Timeline View */}
         <TabsContent value="timeline" className="space-y-4">

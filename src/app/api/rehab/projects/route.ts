@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { projectService } from '@/lib/supabase/database'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 // GET /api/rehab/projects - List all user projects
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
     
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
