@@ -179,7 +179,7 @@ export default function RehabEstimatorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col h-full">
       {/* Error Alert */}
       {error && (
         <div className="px-6 py-4">
@@ -213,11 +213,11 @@ export default function RehabEstimatorPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex gap-6 p-6">
+      <div className="flex gap-6 p-6 flex-1">
         {/* Step Content - Clean form without duplicate headers */}
         <div className="flex-1">
           {CurrentStepComponent && (
-            <CurrentStepComponent 
+            <CurrentStepComponent
               project={project}
               onNext={handleNext}
               onBack={handleBack}
@@ -229,7 +229,7 @@ export default function RehabEstimatorPage() {
 
         {/* Summary Sidebar - Single source of truth */}
         <div className="w-80">
-          <EstimateSummary 
+          <EstimateSummary
             project={project}
             estimateSummary={estimateSummary}
             currentStep={currentStep}

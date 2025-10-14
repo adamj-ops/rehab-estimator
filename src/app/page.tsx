@@ -13,13 +13,13 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push('/rehab-estimator')
+      router.push('/dashboard')
     }
   }, [user, loading, router])
 
   const handleGetStarted = () => {
     if (user) {
-      router.push('/rehab-estimator')
+      router.push('/dashboard')
     } else {
       router.push('/auth')
     }

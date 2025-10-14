@@ -1,24 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rehab Estimator
+
+Professional renovation planning and cost estimation tool for real estate investors. Build data-driven renovation scopes that maximize ROI with comprehensive workflow management, AI-powered recommendations, and interactive timeline visualization.
+
+## Features
+
+### Core Workflow (7-Step Process)
+1. **Property Details** - Comprehensive property information capture
+2. **Condition Assessment** - Room-by-room condition evaluation
+3. **Strategy & Goals** - Investment strategy selection (flip, rental, wholetail, Airbnb)
+4. **Scope Building** - Smart scope generation with cost calculation engine
+5. **Priority Matrix** - ROI vs Urgency analysis
+6. **Action Plan** - Interactive timeline with React Flow visualization
+7. **Final Review** - Comprehensive summary and export
+
+### React Flow Integration
+- **Interactive Timelines** - Drag-and-drop task scheduling
+- **Dependency Mapping** - Visual PERT/CPM charts
+- **Critical Path Analysis** - Automatic calculation with visual highlighting
+- **Conflict Detection** - Resource scheduling conflict alerts
+- **Auto-Layout** - Automatic node positioning algorithms
+
+See [React Flow Integration Guide](./src/lib/react-flow/README.md) for detailed documentation.
+
+### Technology Stack
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **UI**: shadcn/ui with Tailwind CSS (Mono theme)
+- **Visualization**: React Flow (@xyflow/react), Recharts
+- **State**: Zustand with persist middleware
+- **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth
+- **Calculations**: Custom TypeScript engines + Python microservice (planned)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+ and npm
+- Supabase account and project
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd rehab-estimator
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Add your Supabase credentials
+
+# Run the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
 

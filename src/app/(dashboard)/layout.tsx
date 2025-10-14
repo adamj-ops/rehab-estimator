@@ -2,67 +2,61 @@
 
 import { ReactNode } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { UserProfile } from '@/components/auth/user-profile'
-import { Button } from '@/components/ui/button'
-import { Save, RotateCcw } from 'lucide-react'
-import { useRehabStore } from '@/hooks/use-rehab-store'
-import { useAuth } from '@/lib/auth/auth-context'
+import { AppSidebar } from '@/components/app-sidebar'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { usePathname } from 'next/navigation'
 
 interface DashboardLayoutProps {
   children: ReactNode
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { saveProject, resetProject } = useRehabStore()
-  const { user } = useAuth()
+  const pathname = usePathname()
 
-  const handleSaveDraft = async () => {
-    if (!user?.id) {
-      console.error('No user ID available')
-      return
+  // Generate breadcrumb based on current path
+  const getBreadcrumb = () => {
+    if (pathname === '/dashboard') {
+      return { parent: null, current: 'Dashboard' }
     }
-    
-    try {
-      await saveProject(user.id)
-    } catch (err) {
-      console.error('Failed to save draft:', err)
+    if (pathname?.startsWith('/rehab-estimator')) {
+      return { parent: { name: 'Dashboard', href: '/dashboard' }, current: 'Rehab Estimator' }
     }
+    return { parent: null, current: 'Dashboard' }
   }
+
+  const breadcrumb = getBreadcrumb()
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-white px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold">Rehab Estimator</h1>
-              <p className="text-sm text-gray-600">Professional renovation planning and cost estimation</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveDraft}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Draft
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetProject}
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Reset
-                </Button>
-              </div>
-              <UserProfile />
-            </div>
-          </div>
-        </header>
-        <main>{children}</main>
-      </div>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumb.parent && (
+                  <>
+                    <BreadcrumbItem className="hidden md:block">
+                      <BreadcrumbLink href={breadcrumb.parent.href}>
+                        {breadcrumb.parent.name}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden md:block" />
+                  </>
+                )}
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{breadcrumb.current}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </header>
+          <main className="flex-1">{children}</main>
+        </SidebarInset>
+      </SidebarProvider>
     </ProtectedRoute>
   )
 }
