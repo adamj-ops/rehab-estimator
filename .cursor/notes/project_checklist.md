@@ -203,3 +203,13 @@
 - ✅ Authentication context and provider
 - ✅ Automatic redirects based on auth state
 - ✅ Clean, professional UI for auth pages
+
+---
+
+### Expansion: Design → ROI → Exit (from 2025-12-23 docs)
+
+- [ ] Decide integration approach: **Option B / Hybrid** (recommended) vs 10-step conveyor
+- [ ] DB: add/merge new tables from `db/DATABASE_SCHEMA_COMPLETE.sql` (plan migrations + RLS)
+- [ ] Step 4 enhancement (tabbed): **Design & Materials** + **ROI Analysis**
+- [ ] Vendor packets: implement generation flow (data gather → filter → render → PDF → storage → share)
+- [ ] Exit planning: listing prep module (staging + photography + marketing assets)
